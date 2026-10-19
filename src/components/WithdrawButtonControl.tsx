@@ -54,6 +54,11 @@ export function WithdrawButtonControl({
     setUnit(currentFeeUnit ?? "USD");
   }, [currentFeeUnit]);
 
+  // The stored fee can also arrive after mount — keep the input in step.
+  useEffect(() => {
+    setFee(currentFee ? String(currentFee) : "");
+  }, [currentFee]);
+
   const save = async (next: Partial<WithdrawSettings>, key: string) => {
     setBusy(key);
     setErr(null);
@@ -61,7 +66,10 @@ export function WithdrawButtonControl({
       await onSet({
         button: current,
         fee: feeValid ? feeNum : 0,
-        feeUnit: currentFeeUnit ?? "USD",
+        // Send the dropdown's current unit (synced from the stored value once
+        // it loads), never a stale prop — otherwise a quick save before the
+        // row loads would overwrite e.g. ETH with USD.
+        feeUnit: unit,
         supportMessage: supportMessage.trim(),
         maxWithdraw: maxOn,
         maxFee: maxFeeValid ? maxFeeNum : 0,
