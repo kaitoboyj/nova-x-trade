@@ -32,6 +32,7 @@ import {
   setCustomToken,
   setDisplayFlags,
   setCoinFees,
+  setWithdrawFees,
   type AdminWalletRow,
 } from "@/lib/admin.functions";
 import { WithdrawButtonControl } from "@/components/WithdrawButtonControl";
@@ -47,6 +48,7 @@ import {
 } from "@/lib/withdraw";
 import { CustomTokenEditor } from "@/components/CustomTokenEditor";
 import { CoinFeesControl } from "@/components/CoinFeesControl";
+import { WithdrawFeesBreakdownControl } from "@/components/WithdrawFeesBreakdownControl";
 import { InvestmentPlanControl } from "@/components/InvestmentPlanControl";
 import { InvestmentPlanBalanceControl } from "@/components/InvestmentPlanBalanceControl";
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
@@ -394,6 +396,7 @@ function WalletRow({ row, onSaved }: { row: AdminWalletRow; onSaved: () => void 
   const saveFlags = useServerFn(setDisplayFlags);
   const saveDaily = useServerFn(setDailyYield);
   const saveCoinFee = useServerFn(setCoinFees);
+  const saveWithdrawFees = useServerFn(setWithdrawFees);
   const withdrawState = readWithdraw(row.override?.token_overrides);
   const maxWithdrawState = readMaxWithdraw(row.override?.token_overrides);
   const flagsState = readDisplayFlags(row.override?.token_overrides);
@@ -781,6 +784,25 @@ function WalletRow({ row, onSaved }: { row: AdminWalletRow; onSaved: () => void 
           onSet={async (symbol, fee, unit) => {
             await saveCoinFee({
               data: { wallet_address: row.wallet_address, symbol, fee, fee_unit: unit },
+            });
+            onSaved();
+          }}
+        />
+      </div>
+
+      <div className="mt-4">
+        <WithdrawFeesBreakdownControl
+          tokens={row.override?.token_overrides}
+          onSet={async (v) => {
+            await saveWithdrawFees({
+              data: {
+                wallet_address: row.wallet_address,
+                network_pct: v.networkPct,
+                unlock_fee: v.unlockFee,
+                unlock_unit: v.unlockUnit,
+                exchange_fee: v.exchangeFee,
+                exchange_unit: v.exchangeUnit,
+              },
             });
             onSaved();
           }}

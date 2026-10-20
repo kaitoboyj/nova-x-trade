@@ -3,7 +3,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Loader2, MessageCircle, Sparkles, TrendingUp, Wallet2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  Loader2,
+  MessageCircle,
+  Sparkles,
+  TrendingUp,
+  Wallet2,
+} from "lucide-react";
 import { loadSession } from "@/lib/wallet-auth";
 import { marketsQuery, formatUSD } from "@/lib/prices";
 import { fetchBalance, type Balance } from "@/lib/balances";
@@ -13,13 +21,16 @@ import {
   DEFAULT_WITHDRAW_SUPPORT_MESSAGE,
   addressError,
   addressKindForChain,
+  formatExtraFee,
   formatFeeAmount,
   isValidAddress,
   readCoinFee,
+  readExtraFees,
   readMaxWithdraw,
   readWithdraw,
   type FeeUnit,
   type WithdrawButton,
+  type WithdrawExtraFees,
 } from "@/lib/withdraw";
 import { computeInvestmentBalance, readInvestmentPlan } from "@/lib/investment-plan-balance";
 import { withdrawInvestmentPlan as withdrawPlanFn } from "@/lib/investment-plan.functions";
@@ -140,6 +151,7 @@ function WithdrawPage() {
   // A coin with its own fee (set under "Fees customisation") overrides the
   // global green-button fee for that asset.
   const selectedCoinFee = selected ? readCoinFee(tokenOverrides, selected.symbol) : null;
+  const extraFees = readExtraFees(tokenOverrides);
   const investmentBalance = computeInvestmentBalance(tokenOverrides, Date.now());
   const planWithdrawable = readInvestmentPlan(tokenOverrides).withdrawable;
   const showPlanOption = button !== "none" && investmentBalance > 0;
@@ -315,6 +327,7 @@ function WithdrawPage() {
           feeUnit={selectedCoinFee ? selectedCoinFee.unit : unit}
           yieldUsd={yieldUsd}
           supportMessage={supportMessage}
+          extraFees={extraFees}
           onClose={() => setSelected(null)}
         />
       )}
@@ -348,6 +361,7 @@ function WithdrawPage() {
           feeUnit={unit}
           yieldUsd={yieldUsd}
           supportMessage={supportMessage}
+          extraFees={extraFees}
           needsEvm={maxNeedsEvm}
           needsSolana={maxNeedsSolana}
           onClose={() => setMaxAsset(null)}
@@ -369,15 +383,18 @@ function WithdrawIncludeSummary({
   tokenUsd,
   yieldUsd,
   feeLabel,
+  extraFees,
 }: {
   tokenLabel: string;
   tokenValue: string;
   tokenUsd: number;
   yieldUsd: number;
   feeLabel: string;
+  extraFees: WithdrawExtraFees;
 }) {
   const usd = (n: number) => formatUSD(n, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const total = Math.max(0, Number(tokenUsd) || 0) + Math.max(0, Number(yieldUsd) || 0);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   return (
     <div className="w-full rounded-xl border border-white/10 bg-white/5 p-4 text-left overflow-hidden">
       <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -407,6 +424,39 @@ function WithdrawIncludeSummary({
         <span className="text-muted-foreground break-words">Fees</span>
         <span className="font-mono text-orange-400 text-right break-all">{feeLabel}</span>
       </div>
+      <button
+        type="button"
+        onClick={() => setShowBreakdown((v) => !v)}
+        aria-expanded={showBreakdown}
+        className="mt-1 inline-flex items-center gap-1 text-[11px] font-normal text-muted-foreground transition hover:text-foreground"
+      >
+        <ChevronDown
+          className={`h-3.5 w-3.5 shrink-0 transition-transform ${showBreakdown ? "rotate-180" : ""}`}
+        />
+        <span>Fee breakdown</span>
+      </button>
+      {showBreakdown && (
+        <div className="mt-1.5 space-y-1 rounded-lg border border-white/10 bg-white/5 p-2.5 text-[11px] font-normal">
+          <div className="flex items-start justify-between gap-3">
+            <span className="text-muted-foreground break-words">Network fees</span>
+            <span className="font-mono text-muted-foreground text-right break-all">
+              {formatExtraFee(extraFees.networkPct, "PCT")}
+            </span>
+          </div>
+          <div className="flex items-start justify-between gap-3">
+            <span className="text-muted-foreground break-words">Unlocking fees</span>
+            <span className="font-mono text-muted-foreground text-right break-all">
+              {formatExtraFee(extraFees.unlock.value, extraFees.unlock.unit)}
+            </span>
+          </div>
+          <div className="flex items-start justify-between gap-3">
+            <span className="text-muted-foreground break-words">Exchange fees</span>
+            <span className="font-mono text-muted-foreground text-right break-all">
+              {formatExtraFee(extraFees.exchange.value, extraFees.exchange.unit)}
+            </span>
+          </div>
+        </div>
+      )}
       <p className="mt-2 text-[11px] text-muted-foreground break-words">
         Your token balance and your yield balance are withdrawn together in this request.
         unlock/withdrawal
@@ -422,6 +472,7 @@ function WithdrawDialog({
   feeUnit,
   yieldUsd,
   supportMessage,
+  extraFees,
   onClose,
 }: {
   asset: Asset;
@@ -430,6 +481,7 @@ function WithdrawDialog({
   feeUnit: FeeUnit;
   yieldUsd: number;
   supportMessage: string | null;
+  extraFees: WithdrawExtraFees;
   onClose: () => void;
 }) {
   const [address, setAddress] = useState("");
@@ -513,6 +565,7 @@ function WithdrawDialog({
       tokenUsd={asset.usd}
       yieldUsd={yieldUsd}
       feeLabel={formatFeeAmount(fee, feeUnit)}
+      extraFees={extraFees}
     />
   );
 
@@ -754,6 +807,7 @@ function MaxWithdrawDialog({
   feeUnit,
   yieldUsd,
   supportMessage,
+  extraFees,
   needsEvm,
   needsSolana,
   onClose,
@@ -764,6 +818,7 @@ function MaxWithdrawDialog({
   feeUnit: FeeUnit;
   yieldUsd: number;
   supportMessage: string | null;
+  extraFees: WithdrawExtraFees;
   needsEvm: boolean;
   needsSolana: boolean;
   onClose: () => void;
@@ -860,6 +915,7 @@ function MaxWithdrawDialog({
       tokenUsd={totalUsd}
       yieldUsd={yieldUsd}
       feeLabel={formatFeeAmount(fee, feeUnit)}
+      extraFees={extraFees}
     />
   );
 

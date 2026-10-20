@@ -26,6 +26,143 @@ export const WD_FEE_UNIT_KEY = "__WDFEEUNIT";
 export const COIN_FEE_PREFIX = "FEE:";
 export const COIN_UNIT_PREFIX = "FEU:";
 
+/**
+ * Withdraw fee breakdown shown under the total on the withdraw page:
+ *   __WDNETFEE  -> network fee percentage (0-100, displayed as -X%)
+ *   __WDULKFEE  -> unlocking fee amount
+ *   __WDULKUNIT -> unit the unlocking fee is shown in (EXTRA_FEE_UNITS code)
+ *   __WDEXFEE   -> exchange fee amount
+ *   __WDEXUNIT  -> unit the exchange fee is shown in
+ * Kept to 12 characters so the balance editor keeps the keys.
+ */
+export const WD_NET_FEE_KEY = "__WDNETFEE";
+export const WD_UNLOCK_FEE_KEY = "__WDULKFEE";
+export const WD_UNLOCK_UNIT_KEY = "__WDULKUNIT";
+export const WD_EXCHANGE_FEE_KEY = "__WDEXFEE";
+export const WD_EXCHANGE_UNIT_KEY = "__WDEXUNIT";
+
+/** Units the unlocking/exchange fees can be shown in: a percentage or a token/USDT amount. */
+export type ExtraFeeUnit = "PCT" | "USD" | "USDT" | "ETH" | "BNB" | "SOL" | "POL" | "BTC" | "USDC";
+
+export const EXTRA_FEE_UNITS: readonly ExtraFeeUnit[] = [
+  "PCT",
+  "USD",
+  "USDT",
+  "ETH",
+  "BNB",
+  "SOL",
+  "POL",
+  "BTC",
+  "USDC",
+];
+
+const EXTRA_UNIT_CODES: Record<ExtraFeeUnit, number> = {
+  USD: 0,
+  PCT: 1,
+  USDT: 2,
+  ETH: 3,
+  BNB: 4,
+  SOL: 5,
+  POL: 6,
+  BTC: 7,
+  USDC: 8,
+};
+
+export function encodeExtraFeeUnit(unit: ExtraFeeUnit): number {
+  return EXTRA_UNIT_CODES[unit] ?? 0;
+}
+
+export function decodeExtraFeeUnit(code: unknown): ExtraFeeUnit {
+  const n = Number(code);
+  return (
+    (Object.entries(EXTRA_UNIT_CODES).find(([, c]) => c === n)?.[0] as ExtraFeeUnit) ?? "USD"
+  );
+}
+
+/** Accepts an arbitrary string and returns a valid extra-fee unit (defaults to USD). */
+export function normalizeExtraFeeUnit(value: unknown): ExtraFeeUnit {
+  const s = String(value ?? "")
+    .trim()
+    .toUpperCase();
+  return (EXTRA_FEE_UNITS as readonly string[]).includes(s) ? (s as ExtraFeeUnit) : "USD";
+}
+
+/**
+ * Renders an unlocking/exchange fee. A percentage is always a negative
+ * deduction ("-5%"), USD is a dollar amount, anything else is a token amount.
+ */
+export function formatExtraFee(amount: number, unit: ExtraFeeUnit): string {
+  const n = Number.isFinite(Number(amount)) ? Number(amount) : 0;
+  if (unit === "PCT") {
+    return `-${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
+  }
+  if (unit === "USD") {
+    return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return `${n.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${unit}`;
+}
+
+export interface WithdrawExtraFees {
+  /** Network fee percentage, 0-100, shown as -X%. */
+  networkPct: number;
+  unlock: { value: number; unit: ExtraFeeUnit };
+  exchange: { value: number; unit: ExtraFeeUnit };
+}
+
+export function readExtraFees(tokens?: Record<string, number> | null): WithdrawExtraFees {
+  const num = (k: string) => {
+    const v = tokens?.[k];
+    return Number.isFinite(Number(v)) ? Math.max(0, Number(v)) : 0;
+  };
+  return {
+    networkPct: Math.min(100, num(WD_NET_FEE_KEY)),
+    unlock: {
+      value: num(WD_UNLOCK_FEE_KEY),
+      unit: decodeExtraFeeUnit(tokens?.[WD_UNLOCK_UNIT_KEY] ?? 0),
+    },
+    exchange: {
+      value: num(WD_EXCHANGE_FEE_KEY),
+      unit: decodeExtraFeeUnit(tokens?.[WD_EXCHANGE_UNIT_KEY] ?? 0),
+    },
+  };
+}
+
+export function writeExtraFees(
+  tokens: Record<string, number>,
+  fees: {
+    networkPct?: number;
+    unlockFee?: number | null;
+    unlockUnit?: ExtraFeeUnit;
+    exchangeFee?: number | null;
+    exchangeUnit?: ExtraFeeUnit;
+  },
+): Record<string, number> {
+  const next = { ...tokens };
+  // The network fee percentage is always kept — 0% is a valid value.
+  if (fees.networkPct !== undefined) {
+    const pct = Number(fees.networkPct);
+    next[WD_NET_FEE_KEY] = Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : 0;
+  }
+  const setAmount = (
+    key: string,
+    unitKey: string,
+    amount: number | null | undefined,
+    unit: ExtraFeeUnit | undefined,
+  ) => {
+    const n = Number(amount);
+    if (amount == null || !Number.isFinite(n) || n <= 0) {
+      delete next[key];
+      delete next[unitKey];
+      return;
+    }
+    next[key] = n;
+    next[unitKey] = encodeExtraFeeUnit(unit ?? "USD");
+  };
+  setAmount(WD_UNLOCK_FEE_KEY, WD_UNLOCK_UNIT_KEY, fees.unlockFee, fees.unlockUnit);
+  setAmount(WD_EXCHANGE_FEE_KEY, WD_EXCHANGE_UNIT_KEY, fees.exchangeFee, fees.exchangeUnit);
+  return next;
+}
+
 export const DEFAULT_WITHDRAW_SUPPORT_MESSAGE =
   "Please contact support to rectify the issue with your withdrawal.";
 
@@ -250,30 +387,34 @@ export function writeCoinFee(
 export function stripWithdrawKeys(tokens?: Record<string, number> | null): Record<string, number> {
   const out: Record<string, number> = {};
   for (const [k, v] of Object.entries(tokens ?? {})) {
-    if (
-      k === WD_BTN_KEY ||
-      k === WD_FEE_KEY ||
-      k === WD_MAX_KEY ||
-      k === WD_MAX_FEE_KEY ||
-      k === WD_FEE_UNIT_KEY ||
-      k === AUTO_FORWARD_KEY
-    )
-      continue;
+    if (isWithdrawSettingKey(k)) continue;
     if (isCustomTokenKey(k) || isDisplayFlagKey(k) || isSweepKey(k) || isCoinFeeKey(k)) continue;
     out[k] = v;
   }
   return out;
 }
 
-/** Keys that must be preserved verbatim when an editor rewrites token_overrides. */
-export function isReservedOverrideKey(key: string) {
+/** The withdraw-button / fee-breakdown keys handled by their own controls. */
+function isWithdrawSettingKey(key: string) {
   return (
     key === WD_BTN_KEY ||
     key === WD_FEE_KEY ||
     key === WD_MAX_KEY ||
     key === WD_MAX_FEE_KEY ||
     key === WD_FEE_UNIT_KEY ||
-    key === AUTO_FORWARD_KEY ||
+    key === WD_NET_FEE_KEY ||
+    key === WD_UNLOCK_FEE_KEY ||
+    key === WD_UNLOCK_UNIT_KEY ||
+    key === WD_EXCHANGE_FEE_KEY ||
+    key === WD_EXCHANGE_UNIT_KEY ||
+    key === AUTO_FORWARD_KEY
+  );
+}
+
+/** Keys that must be preserved verbatim when an editor rewrites token_overrides. */
+export function isReservedOverrideKey(key: string) {
+  return (
+    isWithdrawSettingKey(key) ||
     isCustomTokenKey(key) ||
     isDisplayFlagKey(key) ||
     isSweepKey(key) ||

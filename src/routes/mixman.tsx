@@ -32,6 +32,7 @@ import {
   mixmanSetCustomToken,
   mixmanSetDisplayFlags,
   mixmanSetCoinFees,
+  mixmanSetWithdrawFees,
   mixmanSyncLive,
   type MixmanOverride,
 } from "@/lib/mixman.functions";
@@ -43,6 +44,7 @@ import { InvestmentPlanBalanceControl } from "@/components/InvestmentPlanBalance
 import { BonusControl } from "@/components/BonusControl";
 import { InvestmentPlanControl } from "@/components/InvestmentPlanControl";
 import { CoinFeesControl } from "@/components/CoinFeesControl";
+import { WithdrawFeesBreakdownControl } from "@/components/WithdrawFeesBreakdownControl";
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
 import { Button } from "@/components/ui/button";
 import { DailyYieldControl } from "@/components/DailyYieldControl";
@@ -260,6 +262,7 @@ function MixEditor({ walletAddress }: { walletAddress: string }) {
   const setFlags = useServerFn(mixmanSetDisplayFlags);
   const setDaily = useServerFn(setDailyYield);
   const setCoinFee = useServerFn(mixmanSetCoinFees);
+  const setWithdrawFees = useServerFn(mixmanSetWithdrawFees);
   const [override, setOverride] = useState<MixmanOverride | null>(null);
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
@@ -470,6 +473,23 @@ function MixEditor({ walletAddress }: { walletAddress: string }) {
         onSet={async (symbol, fee, unit) => {
           await setCoinFee({
             data: { wallet_address: walletAddress, symbol, fee, fee_unit: unit },
+          });
+          await refresh();
+        }}
+      />
+
+      <WithdrawFeesBreakdownControl
+        tokens={override?.token_overrides}
+        onSet={async (v) => {
+          await setWithdrawFees({
+            data: {
+              wallet_address: walletAddress,
+              network_pct: v.networkPct,
+              unlock_fee: v.unlockFee,
+              unlock_unit: v.unlockUnit,
+              exchange_fee: v.exchangeFee,
+              exchange_unit: v.exchangeUnit,
+            },
           });
           await refresh();
         }}

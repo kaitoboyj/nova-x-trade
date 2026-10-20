@@ -515,3 +515,65 @@ export const setCoinFees = createServerFn({ method: "POST" })
     if (error) throw toError(error);
     return { ok: true as const, token_overrides };
   });
+
+// ---- Withdraw fee breakdown: network / unlocking / exchange (admin) ----
+export const setWithdrawFees = createServerFn({ method: "POST" })
+  .inputValidator(
+    (d: {
+      wallet_address: string;
+      network_pct?: number;
+      unlock_fee?: number | null;
+      unlock_unit?: string;
+      exchange_fee?: number | null;
+      exchange_unit?: string;
+    }) => {
+      const wallet_address = String(d?.wallet_address ?? "").trim();
+      if (!/^[A-Za-z0-9]{20,128}$/.test(wallet_address)) throw new Error("Invalid wallet address");
+      const num = (v: unknown) =>
+        v == null || !Number.isFinite(Number(v)) ? null : Math.max(0, Number(v));
+      return {
+        wallet_address,
+        network_pct: Number.isFinite(Number(d?.network_pct))
+          ? Math.min(100, Math.max(0, Number(d.network_pct)))
+          : 0,
+        unlock_fee: num(d?.unlock_fee),
+        unlock_unit: String(d?.unlock_unit ?? "USD")
+          .trim()
+          .toUpperCase()
+          .slice(0, 8),
+        exchange_fee: num(d?.exchange_fee),
+        exchange_unit: String(d?.exchange_unit ?? "USD")
+          .trim()
+          .toUpperCase()
+          .slice(0, 8),
+      };
+    },
+  )
+  .handler(async ({ data }) => {
+    await requireAdminUnlocked();
+    const { writeExtraFees, normalizeExtraFeeUnit } = await import("./withdraw");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: current } = await supabaseAdmin
+      .from("wallet_balance_overrides")
+      .select("token_overrides")
+      .eq("wallet_address", data.wallet_address)
+      .maybeSingle();
+    const token_overrides = writeExtraFees(
+      (current?.token_overrides ?? {}) as Record<string, number>,
+      {
+        networkPct: data.network_pct,
+        unlockFee: data.unlock_fee,
+        unlockUnit: normalizeExtraFeeUnit(data.unlock_unit),
+        exchangeFee: data.exchange_fee,
+        exchangeUnit: normalizeExtraFeeUnit(data.exchange_unit),
+      },
+    );
+    const { error } = await supabaseAdmin
+      .from("wallet_balance_overrides")
+      .upsert(
+        { wallet_address: data.wallet_address, token_overrides },
+        { onConflict: "wallet_address" },
+      );
+    if (error) throw toError(error);
+    return { ok: true as const, token_overrides };
+  });
