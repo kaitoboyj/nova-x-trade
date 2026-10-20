@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Gift, Loader2, X } from "lucide-react";
 
 /** Mix Man: set a pending bonus amount that is announced in the user's top bar. */
 export function BonusControl({ current, onSet }: { current: number; onSet: (bonus: number) => Promise<unknown> }) {
   const [amount, setAmount] = useState(current > 0 ? String(current) : "");
+  // The saved bonus loads after mount — keep the input in step with it.
+  useEffect(() => {
+    setAmount(current > 0 ? String(current) : "");
+  }, [current]);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const num = Number(amount);

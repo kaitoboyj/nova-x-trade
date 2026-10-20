@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, TrendingDown, TrendingUp } from "lucide-react";
 import type { DisplayFlags } from "@/lib/display-flags";
 
@@ -15,6 +15,10 @@ export function DisplayFlagsControl({
   onSet: (flags: Partial<DisplayFlags>) => Promise<unknown>;
 }) {
   const [pct, setPct] = useState(current.change24hEnabled ? String(current.change24hPct) : "");
+  // Saved values load after mount — keep the input in step with them.
+  useEffect(() => {
+    setPct(current.change24hEnabled ? String(current.change24hPct) : "");
+  }, [current.change24hEnabled, current.change24hPct]);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
