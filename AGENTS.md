@@ -25,3 +25,4 @@
 - Netlify uses the conditional Nitro Netlify preset, not a second deployment adapter, to preserve Lovable builds and avoid competing server outputs.
 - Investment plan availability uses a single reserved override row through a narrow public settings reader and Admin/Mix Man-authorized writes; exclude the settings identity from wallet lists to avoid changing wallet management.
 - Investment activation is an explicitly labeled client-only simulation with no financial mutations; balance eligibility reads existing wallet sources without invoking transaction or forwarding handlers.
+- Admin/Mix Man settings controls must re-sync their inputs from stored props (useEffect), because Mix Man loads the wallet row after mount and a refresh would otherwise show defaults.

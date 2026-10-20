@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, Save } from "lucide-react";
 import {
   EXTRA_FEE_UNITS,
@@ -37,6 +37,18 @@ export function WithdrawFeesBreakdownControl({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  // The saved fees arrive after the page loads (and again after each save), so
+  // keep the inputs in step with what is actually stored for this account.
+  const storedKey = `${stored.networkPct}|${stored.unlock.value}|${stored.unlock.unit}|${stored.exchange.value}|${stored.exchange.unit}`;
+  useEffect(() => {
+    setNetworkPct(String(stored.networkPct));
+    setUnlockFee(stored.unlock.value ? String(stored.unlock.value) : "");
+    setUnlockUnit(stored.unlock.unit);
+    setExchangeFee(stored.exchange.value ? String(stored.exchange.value) : "");
+    setExchangeUnit(stored.exchange.unit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storedKey]);
 
   const numOrNull = (s: string) => {
     const n = Number(s);

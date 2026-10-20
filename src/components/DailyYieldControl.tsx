@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { readDailyYieldRate, readDailyYieldStart } from "@/lib/daily-yield";
 
@@ -12,6 +12,10 @@ export function DailyYieldControl({
   const rate = readDailyYieldRate(tokens);
   const start = readDailyYieldStart(tokens);
   const [val, setVal] = useState(String(rate));
+  // The saved rate loads after mount — keep the input in step with it.
+  useEffect(() => {
+    setVal(String(rate));
+  }, [rate]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const num = Number(val);
