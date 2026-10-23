@@ -305,7 +305,7 @@ function Hero() {
     <section className="home-hero relative isolate overflow-hidden border-b border-border bg-background">
       <img src={homeFinance} alt="" width={1920} height={1024} fetchPriority="high" className="home-hero-image pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover" />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="home-hero-copy max-w-2xl py-12 sm:py-16 lg:py-12 sm:py-16">
+        <div className="home-hero-copy max-w-2xl py-12 sm:py-16">
           <div className="flex items-center gap-3 text-xs font-mono text-primary"><span className="h-px w-8 bg-primary" /> MARKETS. WALLET. EXCHANGE.</div>
           <h1 className="mt-5 font-display text-4xl font-semibold leading-tight sm:text-6xl"><Brand /><span className="mt-2 block text-primary">Your next move.</span></h1>
           <p className="mt-5 max-w-md text-base leading-relaxed text-muted-foreground">A sharper view of crypto. Explore the markets, open your trading terminal, and keep your wallet within reach.</p>

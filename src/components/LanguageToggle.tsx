@@ -140,7 +140,7 @@ export function LanguageToggle() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="notranslate absolute bottom-full right-0 z-50 mb-2 w-72 rounded-lg border border-border bg-card p-3 shadow-elev">
+          <div className="notranslate fixed left-4 right-4 bottom-4 z-50 rounded-lg border border-border bg-card p-3 shadow-elev sm:absolute sm:left-auto sm:right-0 sm:bottom-full sm:mb-2 sm:w-72">
             <p className="mb-2 text-[10px] uppercase text-muted-foreground">Language</p>
             <LanguagePicker
               value={current}

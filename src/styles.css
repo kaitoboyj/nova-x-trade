@@ -202,6 +202,13 @@ html.light ::-webkit-scrollbar-thumb:hover {
     background-attachment: fixed;
   }
 
+  /* Safety net: no single element (long hashes, popovers, tooltips) may create
+     a horizontal page scroll on narrow phones. `clip` leaves the sticky header
+     and fixed overlays working, unlike `hidden`. */
+  html {
+    overflow-x: clip;
+  }
+
   ::selection {
     background: oklch(0.72 0.19 50 / 0.35);
   }

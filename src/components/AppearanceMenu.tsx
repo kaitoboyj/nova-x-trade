@@ -86,7 +86,7 @@ export function AppearanceMenu() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-lg border border-border bg-card shadow-elev">
+          <div className="fixed left-3 right-3 top-[84px] z-50 overflow-hidden rounded-lg border border-border bg-card shadow-elev sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80">
             <div className="max-h-[70vh] overflow-y-auto">
               <p className="px-3 pb-1 pt-3 text-[10px] uppercase text-muted-foreground">Theme</p>
               <div className="flex gap-2 px-3 pb-3">

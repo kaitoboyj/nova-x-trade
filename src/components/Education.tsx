@@ -28,7 +28,7 @@ export function Term({ children }: { children: string }) {
         <HelpCircle className="h-3 w-3 text-primary" />
       </button>
       {open && (
-        <span className="absolute bottom-full left-0 z-50 mb-1.5 block w-56 rounded-md border border-border bg-popover p-2 text-left text-[11px] leading-relaxed text-popover-foreground shadow-elev">
+        <span className="absolute bottom-full left-1/2 z-50 mb-1.5 block w-56 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-md border border-border bg-popover p-2 text-left text-[11px] leading-relaxed text-popover-foreground shadow-elev">
           {definition}
         </span>
       )}

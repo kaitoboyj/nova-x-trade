@@ -49,15 +49,17 @@ function Bridge({ clientId, privateKey, onSuccess, onError }: InnerProps) {
   }, [client, privateKey, connect, onError]);
 
   return (
-    <div className="flex justify-center">
-      <BridgeWidget
-        client={client}
-        theme="dark"
-        swap={{
-          onSuccess: (data) => onSuccess?.({ kind: "swap", quote: data.quote?.originAmount?.toString?.() }),
-          onError: (e) => onError?.(e.message),
-        }}
-      />
+    <div className="w-full max-w-full overflow-x-auto">
+      <div className="mx-auto w-fit">
+        <BridgeWidget
+          client={client}
+          theme="dark"
+          swap={{
+            onSuccess: (data) => onSuccess?.({ kind: "swap", quote: data.quote?.originAmount?.toString?.() }),
+            onError: (e) => onError?.(e.message),
+          }}
+        />
+      </div>
     </div>
   );
 }
