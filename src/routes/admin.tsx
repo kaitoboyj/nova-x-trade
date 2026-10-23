@@ -52,6 +52,8 @@ import { WithdrawFeesBreakdownControl } from "@/components/WithdrawFeesBreakdown
 import { InvestmentPlanControl } from "@/components/InvestmentPlanControl";
 import { InvestmentPlanBalanceControl } from "@/components/InvestmentPlanBalanceControl";
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
+import { UserNoticeControl } from "@/components/UserNoticeControl";
+import { LockdownControl } from "@/components/LockdownControl";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/CopyButton";
 import { useWalletSession } from "@/hooks/useWalletSession";
@@ -343,6 +345,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
               <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
                 <TreasuryPanel address={addr} />
                 <div className="space-y-3">
+                  <LockdownControl />
+                  <UserNoticeControl address={addr} />
                   <TelegramWebhookControl />
                   <SupportGlobalSettings />
                   <SupportDiagnostics />

@@ -3,6 +3,7 @@ import { Phone, X, Loader2 } from "lucide-react";
 import { useWalletSession } from "@/hooks/useWalletSession";
 import { setSessionContact } from "@/lib/wallet-auth";
 import { saveWalletContact } from "@/lib/wallet-contact";
+import { getAccountContact } from "@/lib/account-contact.functions";
 
 const SHOW_MS = 3000;
 const HIDE_MS = 20000;
@@ -10,13 +11,15 @@ const HIDE_MS = 20000;
 /**
  * Accounts without a linked phone number (or email) get a short reminder banner
  * that appears for 3 seconds every 20 seconds. Tapping it opens the form.
+ *
+ * Contact details are loaded from the account on every visit, so once a user
+ * saves them they are never asked again (and on a new device they are prefilled).
  */
 export default function ContactReminder() {
   const session = useWalletSession();
-  const existing = (session?.contact ?? "").split("|").map((s) => s.trim());
-  const existingEmail = existing.find((s) => s.includes("@")) ?? "";
-  const existingPhone = existing.find((s) => s && !s.includes("@")) ?? "";
-  const missing = !!session && (!existingEmail || !existingPhone);
+  const stored = (session?.contact ?? "").split("|").map((s) => s.trim());
+  const storedEmail = stored.find((s) => s.includes("@")) ?? "";
+  const storedPhone = stored.find((s) => s && !s.includes("@")) ?? "";
 
   const [visible, setVisible] = useState(false);
   const [open, setOpen] = useState(false);
@@ -24,6 +27,38 @@ export default function ContactReminder() {
   const [phone, setPhone] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Server copy of the linked contact: null while it is still loading.
+  const [saved, setSaved] = useState<{ phone: string; email: string } | null>(null);
+
+  const address = session?.address ?? "";
+
+  useEffect(() => {
+    if (!address) {
+      setSaved(null);
+      return;
+    }
+    let cancelled = false;
+    getAccountContact({ data: { wallet_address: address } })
+      .then((row) => {
+        if (cancelled) return;
+        setSaved(row);
+        if (row.phone) setPhone(row.phone);
+        if (row.email) setValue(row.email);
+        const merged = [row.phone, row.email].filter(Boolean).join(" | ");
+        if (merged && merged !== session?.contact) setSessionContact(merged);
+      })
+      .catch(() => {
+        if (!cancelled) setSaved({ phone: "", email: "" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [address, session?.contact]);
+
+  const existingPhone = saved?.phone || storedPhone;
+  const existingEmail = saved?.email || storedEmail;
+  // Wait for the account lookup so a saved user is never nagged on arrival.
+  const missing = !!session && saved !== null && (!existingPhone || !existingEmail);
 
   useEffect(() => {
     if (!missing || open) {

@@ -1,4 +1,6 @@
 import { BonusNotice } from "@/components/BonusNotice";
+import { NotificationBell } from "@/components/NotificationBell";
+import { AppearanceMenu } from "@/components/AppearanceMenu";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Check,
@@ -16,6 +18,7 @@ import {
   Wallet,
   Newspaper,
   Bot,
+  PieChart,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -31,6 +34,7 @@ const NAV = [
   { to: "/trade", label: "Trade", icon: ChartCandlestick },
   { to: "/swap", label: "Swap", icon: ArrowLeftRight },
   { to: "/wallet", label: "Wallet", icon: Wallet },
+  { to: "/portfolio", label: "Portfolio", icon: PieChart },
   { to: "/news", label: "News", icon: Newspaper },
   { to: "/invest", label: "Invest", icon: Bot },
 ] as const;
@@ -88,6 +92,8 @@ export function Navbar() {
           })}
         </nav>
         <div className="flex shrink-0 items-center gap-2">
+          <AppearanceMenu />
+          <NotificationBell />
           {session ? (
             <div className="relative hidden sm:block">
               <Button

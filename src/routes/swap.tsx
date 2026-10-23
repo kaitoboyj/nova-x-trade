@@ -18,6 +18,7 @@ import { brandLogo } from "@/lib/brand";
 import { useWalletSession } from "@/hooks/useWalletSession";
 import { getPrivateKey } from "@/lib/wallet-signer";
 import { SwapWidget } from "@/components/SwapWidget";
+import { DcaPanel } from "@/components/DcaPanel";
 
 export const Route = createFileRoute("/swap")({
   head: () => ({
@@ -226,6 +227,11 @@ function SwapPage() {
           </p>
         </aside>
       </div>
+      {session && pk ? (
+        <div className="mt-8">
+          <DcaPanel address={session.address} />
+        </div>
+      ) : null}
     </div>
   );
 }

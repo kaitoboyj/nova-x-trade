@@ -1,7 +1,7 @@
 import { brandPreviewMeta } from "@/lib/brand";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { ArrowDown, ArrowDownUp, ArrowUpRight, BarChart3, ChevronLeft, ChevronRight, CircleDollarSign, Download, Globe2, RefreshCw, Search, Star, TrendingUp } from "lucide-react";
 import { marketsQuery, globalMarketQuery, formatUSD, formatCompact, formatPct, type Coin } from "@/lib/prices";
 import { Sparkline } from "@/components/Sparkline";
@@ -26,6 +26,20 @@ export const Route = createFileRoute("/markets")({
 type SortKey = "market_cap" | "price" | "change" | "volume";
 type Filter = "all" | "gainers" | "losers";
 
+// Non-sensitive local preference: the device's saved watchlist.
+const WATCHLIST_KEY = "prime:watchlist:v1";
+
+function readWatchlist(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(WATCHLIST_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
 function MarketsPage() {
   const { data, isLoading, isError, isFetching, refetch, dataUpdatedAt } = useQuery(marketsQuery(100));
   const global = useQuery(globalMarketQuery);
@@ -39,6 +53,7 @@ function MarketsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState("bitcoin");
+  useEffect(() => { setFavs(readWatchlist()); }, []);
   const assets = data ?? [];
   const active = assets.find((coin) => coin.id === selected) ?? assets[0];
   const coins = useMemo(() => [...(data ?? [])].filter((c) =>
@@ -54,7 +69,7 @@ function MarketsPage() {
   const advancing = assets.filter((coin) => coin.price_change_percentage_24h > 0).length;
   const btc = assets.find((coin) => coin.id === "bitcoin");
   const sideAssets = sideTab === "leaders" ? [...assets].sort((a, b) => b.total_volume - a.total_volume).slice(0, 6) : assets.filter((coin) => favs.has(coin.id)).slice(0, 6);
-  const toggleFav = (id: string) => setFavs((previous) => { const next = new Set(previous); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  const toggleFav = (id: string) => setFavs((previous) => { const next = new Set(previous); next.has(id) ? next.delete(id) : next.add(id); try { window.localStorage.setItem(WATCHLIST_KEY, JSON.stringify([...next])); } catch { /* ignore */ } return next; });
   const toggleSort = (key: SortKey) => { setPage(1); if (sort === key) setDir(dir === "asc" ? "desc" : "asc"); else { setSort(key); setDir("desc"); } };
   const exportCSV = () => {
     const csv = [["Rank", "Asset", "Symbol", "Price USD", "24h %", "Market cap USD", "Volume USD"], ...coins.map((coin) => [coin.market_cap_rank, coin.name, coin.symbol, coin.current_price, coin.price_change_percentage_24h, coin.market_cap, coin.total_volume])].map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");

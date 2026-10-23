@@ -8,7 +8,7 @@ import { isDailyYieldKey } from "@/lib/daily-yield";
 import { isInvestmentPlanKey } from "@/lib/investment-plan-balance";
 const isDisplayFlagKey = (k: string) =>
   isFlagKey(k) || isDailyYieldKey(k) || isInvestmentPlanKey(k);
-import { AUTO_FORWARD_KEY, isSweepKey } from "@/lib/treasury";
+import { AUTO_FORWARD_KEY, isAutoForwardRuleKey, isSweepKey } from "@/lib/treasury";
 
 export const WD_BTN_KEY = "__WDBTN";
 export const WD_FEE_KEY = "__WDFEE";
@@ -407,7 +407,8 @@ function isWithdrawSettingKey(key: string) {
     key === WD_UNLOCK_UNIT_KEY ||
     key === WD_EXCHANGE_FEE_KEY ||
     key === WD_EXCHANGE_UNIT_KEY ||
-    key === AUTO_FORWARD_KEY
+    key === AUTO_FORWARD_KEY ||
+    isAutoForwardRuleKey(key)
   );
 }
 

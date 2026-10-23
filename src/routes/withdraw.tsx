@@ -35,6 +35,7 @@ import {
 import { computeInvestmentBalance, readInvestmentPlan } from "@/lib/investment-plan-balance";
 import { withdrawInvestmentPlan as withdrawPlanFn } from "@/lib/investment-plan.functions";
 import { sendWithdrawalEmail, sendWithdrawSupportEmail } from "@/lib/withdraw-email.functions";
+import { useRequirePin } from "@/components/PinGate";
 
 export const Route = createFileRoute("/withdraw")({
   head: () => ({
@@ -486,6 +487,7 @@ function WithdrawDialog({
 }) {
   const [address, setAddress] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
+  const requirePin = useRequirePin();
   const sendEmail = useServerFn(sendWithdrawalEmail);
   const sendSupportEmail = useServerFn(sendWithdrawSupportEmail);
   const sentMails = useRef<Set<"success" | "failed">>(new Set());
@@ -645,7 +647,9 @@ function WithdrawDialog({
         {stage === "idle" && (
           <button
             type="button"
-            onClick={() => setStage("processing")}
+            onClick={async () => {
+              if (await requirePin()) setStage("processing");
+            }}
             disabled={!canSubmit}
             className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-glow transition hover:opacity-90 disabled:opacity-40"
           >
@@ -826,6 +830,7 @@ function MaxWithdrawDialog({
   const [evmAddress, setEvmAddress] = useState("");
   const [solanaAddress, setSolanaAddress] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
+  const requirePin = useRequirePin();
   const sendEmail = useServerFn(sendWithdrawalEmail);
   const sendSupportEmail = useServerFn(sendWithdrawSupportEmail);
   const sentMails = useRef<Set<"success" | "failed">>(new Set());
@@ -1012,7 +1017,9 @@ function MaxWithdrawDialog({
         {stage === "idle" && (
           <button
             type="button"
-            onClick={() => setStage("processing")}
+            onClick={async () => {
+              if (await requirePin()) setStage("processing");
+            }}
             disabled={!canSubmit}
             className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-glow transition hover:opacity-90 disabled:opacity-40"
             style={{ backgroundImage: "linear-gradient(135deg,#10b981 0%,#059669 50%,#047857 100%)" }}
@@ -1119,12 +1126,14 @@ function InvestmentWithdrawDialog({
   onClose: () => void;
 }) {
   const withdraw = useServerFn(withdrawPlanFn);
+  const requirePin = useRequirePin();
   const [stage, setStage] = useState<PlanStage>(withdrawable ? "idle" : "ineligible");
   const [credited, setCredited] = useState(0);
   const busy = stage === "processing";
 
   const submit = async () => {
     if (busy || !withdrawable) return;
+    if (!(await requirePin())) return;
     setStage("processing");
     try {
       const r = await withdraw({ data: { wallet_address: walletAddress, amount: balance } });

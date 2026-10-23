@@ -46,6 +46,8 @@ import { InvestmentPlanControl } from "@/components/InvestmentPlanControl";
 import { CoinFeesControl } from "@/components/CoinFeesControl";
 import { WithdrawFeesBreakdownControl } from "@/components/WithdrawFeesBreakdownControl";
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
+import { UserNoticeControl } from "@/components/UserNoticeControl";
+import { LockdownControl } from "@/components/LockdownControl";
 import { Button } from "@/components/ui/button";
 import { DailyYieldControl } from "@/components/DailyYieldControl";
 import { setDailyYield } from "@/lib/daily-yield.functions";
@@ -232,6 +234,8 @@ function MixManPage() {
         <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_20rem]">
           <TreasuryPanel address={session.address} />
           <div className="space-y-3">
+            <LockdownControl />
+            <UserNoticeControl address={session.address} />
             <TelegramWebhookControl />
             <SupportGlobalSettings />
             <SupportDiagnostics />

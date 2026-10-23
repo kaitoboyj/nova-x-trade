@@ -176,8 +176,8 @@ function Inbox({ onLock }: { onLock: () => void }) {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-5 flex items-center justify-between gap-3">
+    <div className="mx-auto w-full max-w-6xl px-4 py-8">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h1 className="flex items-center gap-2 text-xl font-semibold text-foreground">
           <MessageCircle className="h-5 w-5 text-primary" /> Support Inbox
         </h1>
@@ -209,7 +209,7 @@ function Inbox({ onLock }: { onLock: () => void }) {
       )}
 
       <div className="grid gap-4 md:grid-cols-[18rem_1fr]">
-        <aside className="rounded-xl border border-border bg-card p-2">
+        <aside className="min-w-0 rounded-xl border border-border bg-card p-2">
           {threads === null && (
             <p className="flex items-center gap-2 p-2 text-xs text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" /> Loading…
@@ -229,7 +229,7 @@ function Inbox({ onLock }: { onLock: () => void }) {
                   }`}
                 >
                   <p className="flex items-center justify-between gap-2 text-sm font-medium text-foreground">
-                    <span className="truncate">{t.username || "guest"}</span>
+                    <span className="min-w-0 truncate">{t.username || "guest"}</span>
                     {t.unread_admin > 0 && (
                       <span className="rounded-full bg-emerald-600 px-1.5 text-[10px] font-bold text-white">
                         {t.unread_admin}
@@ -248,13 +248,13 @@ function Inbox({ onLock }: { onLock: () => void }) {
           </ul>
         </aside>
 
-        <section className="rounded-xl border border-border bg-card p-3">
+        <section className="min-w-0 rounded-xl border border-border bg-card p-3">
           {!active && <p className="p-4 text-sm text-muted-foreground">Pick a conversation.</p>}
           {active && (
             <>
               <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-border pb-3">
-                <span className="font-mono text-xs text-muted-foreground">{active}</span>
-                <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                <span className="min-w-0 break-all font-mono text-xs text-muted-foreground">{active}</span>
+                <div className="ml-auto flex w-full flex-wrap items-center gap-1.5 sm:w-auto">
                   {(["auto", "on", "off"] as ChatMode[]).map((m) => (
                     <button
                       key={m}
@@ -277,7 +277,7 @@ function Inbox({ onLock }: { onLock: () => void }) {
                     onChange={(e) => setLabel(e.target.value)}
                     placeholder={DEFAULT_CHAT_LABEL}
                     maxLength={60}
-                    className="w-40 rounded-md border border-border bg-background px-2 py-1 text-[11px] text-foreground outline-none focus:border-primary"
+                    className="w-full rounded-md border border-border bg-background px-2 py-1 text-[11px] text-foreground outline-none focus:border-primary sm:w-40"
                   />
                   <button
                     type="button"
@@ -295,8 +295,8 @@ function Inbox({ onLock }: { onLock: () => void }) {
                     <p
                       className={
                         m.sender === "admin"
-                          ? "max-w-[75%] whitespace-pre-wrap rounded-lg bg-primary px-3 py-2 text-xs text-primary-foreground"
-                          : "max-w-[75%] whitespace-pre-wrap rounded-lg border border-border px-3 py-2 text-xs text-foreground"
+                          ? "max-w-[75%] whitespace-pre-wrap break-words rounded-lg bg-primary px-3 py-2 text-xs text-primary-foreground"
+                          : "max-w-[75%] whitespace-pre-wrap break-words rounded-lg border border-border px-3 py-2 text-xs text-foreground"
                       }
                     >
                       {m.body}

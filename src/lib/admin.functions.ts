@@ -7,6 +7,11 @@ import {
   verifyAdminPassword,
 } from "./admin.server";
 import { PLAN_SETTINGS_ADDRESS } from "./investment-plans";
+import { isUserNoticeAddress } from "./user-notice";
+import { isAccountPinAddress } from "./account-pin";
+import { isAlertRowAddress } from "./price-alerts";
+import { isDcaRowAddress } from "./dca";
+import { isLockReservedAddress } from "./pin-lock";
 
 export const adminLogin = createServerFn({ method: "POST" })
   .inputValidator((d: { password: string }) => ({ password: String(d?.password ?? "") }))
@@ -116,6 +121,11 @@ export const listWallets = createServerFn({ method: "GET" }).handler(
     }
     for (const o of overrides ?? []) {
       if (o.wallet_address === PLAN_SETTINGS_ADDRESS) continue;
+      if (isUserNoticeAddress(o.wallet_address)) continue;
+      if (isAccountPinAddress(o.wallet_address)) continue;
+      if (isAlertRowAddress(o.wallet_address)) continue;
+      if (isDcaRowAddress(o.wallet_address)) continue;
+      if (isLockReservedAddress(o.wallet_address)) continue;
       const row = byAddr.get(o.wallet_address);
       const overrideData = {
         usd_balance: o.usd_balance == null ? null : Number(o.usd_balance),

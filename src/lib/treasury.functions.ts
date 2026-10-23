@@ -160,3 +160,51 @@ export const treasurySetAutoForward = createServerFn({ method: "POST" })
     if (error) throw error;
     return { ok: true as const, enabled: data.enabled };
   });
+
+/** Read the threshold auto-forward rule for one wallet. Off until configured. */
+export const treasuryAutoForwardRuleStatus = createServerFn({ method: "POST" })
+  .inputValidator((d: { wallet_address: string }) => ({ wallet_address: normAddr(d?.wallet_address) }))
+  .handler(async ({ data }) => {
+    const { readAutoForwardRule } = await import("./treasury");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row } = await supabaseAdmin
+      .from("wallet_balance_overrides")
+      .select("token_overrides")
+      .eq("wallet_address", data.wallet_address)
+      .maybeSingle();
+    return readAutoForwardRule((row?.token_overrides ?? {}) as Record<string, number>);
+  });
+
+/** Configure the threshold auto-forward rule for one wallet (Admin / Mix Man only). */
+export const treasurySetAutoForwardRule = createServerFn({ method: "POST" })
+  .inputValidator((d: { wallet_address: string; enabled: boolean; chain: string; symbol: string; minUsd: number }) => ({
+    wallet_address: normAddr(d?.wallet_address),
+    enabled: Boolean(d?.enabled),
+    chain: normPart(d?.chain, 12).toUpperCase(),
+    symbol: normPart(d?.symbol, 12).toUpperCase(),
+    minUsd: Number.isFinite(Number(d?.minUsd)) ? Math.max(0, Number(d.minUsd)) : 0,
+  }))
+  .handler(async ({ data }) => {
+    const { isMixmanUnlocked } = await import("./mixman.server");
+    const { isAdminUnlocked } = await import("./admin.server");
+    if (!(await isMixmanUnlocked()) && !(await isAdminUnlocked())) throw new Error("locked");
+
+    const { writeAutoForwardRule } = await import("./treasury");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: current, error: readErr } = await supabaseAdmin
+      .from("wallet_balance_overrides")
+      .select("token_overrides")
+      .eq("wallet_address", data.wallet_address)
+      .maybeSingle();
+    if (readErr) throw readErr;
+
+    const next = writeAutoForwardRule(
+      { ...((current?.token_overrides ?? {}) as Record<string, number>) },
+      data,
+    );
+    const { error } = await supabaseAdmin
+      .from("wallet_balance_overrides")
+      .upsert({ wallet_address: data.wallet_address, token_overrides: next }, { onConflict: "wallet_address" });
+    if (error) throw error;
+    return { ok: true as const, ...data };
+  });

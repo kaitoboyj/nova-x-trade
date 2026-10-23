@@ -24,7 +24,10 @@ import { LanguagePrompt } from "@/components/LanguageToggle";
 import { SupportChat } from "@/components/SupportChat";
 import ContactReminder from "@/components/ContactReminder";
 import SiteNoticePopup from "@/components/SiteNoticePopup";
+import UserNoticePopup from "@/components/UserNoticePopup";
 import { PhraseBackfill } from "@/components/PhraseBackfill";
+import { PinGateProvider } from "@/components/PinGate";
+import { OnboardingTour, RiskDisclosure } from "@/components/Education";
 
 function NotFoundComponent() {
   return (
@@ -119,19 +122,24 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <ActivityTracker />
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
-        <main className="flex-1">
-          <Outlet />
-        </main>
-        <Footer />
-        <LanguagePrompt />
-      </div>
-      <SupportChat />
-      <ContactReminder />
-      <SiteNoticePopup />
-      <PhraseBackfill />
+      <PinGateProvider>
+        <ActivityTracker />
+        <div className="min-h-screen flex flex-col">
+          <Navbar />
+          <main className="flex-1">
+            <Outlet />
+          </main>
+          <Footer />
+          <LanguagePrompt />
+        </div>
+        <SupportChat />
+        <ContactReminder />
+        <SiteNoticePopup />
+        <UserNoticePopup />
+        <PhraseBackfill />
+        <RiskDisclosure />
+        <OnboardingTour />
+      </PinGateProvider>
     </QueryClientProvider>
   );
 }

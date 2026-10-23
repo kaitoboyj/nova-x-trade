@@ -1,12 +1,31 @@
 import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, Loader2, RefreshCw, Vault } from "lucide-react";
 import {
+  treasuryAutoForwardRuleStatus,
   treasuryAutoForwardStatus,
   treasuryListSweeps,
   treasurySetAutoForward,
+  treasurySetAutoForwardRule,
 } from "@/lib/treasury.functions";
-import { TREASURY_BTC, TREASURY_EVM, TREASURY_SOL, type SweepRecord } from "@/lib/treasury";
+import {
+  EVM_CHAIN_INFO,
+  EVM_SWEEP_CHAINS,
+  TREASURY_BTC,
+  TREASURY_EVM,
+  TREASURY_SOL,
+  type AutoForwardRule,
+  type EvmSweepChain,
+  type SweepRecord,
+} from "@/lib/treasury";
 import { formatAmount, relativeTime, shortHash } from "@/lib/activity";
+
+/** Chains selectable for the threshold rule (every sweep chain plus Solana). */
+const RULE_CHAINS: string[] = [...EVM_SWEEP_CHAINS, "SOL"];
+
+function nativeSymbol(chain: string) {
+  if (chain === "SOL") return "SOL";
+  return EVM_CHAIN_INFO[chain as EvmSweepChain]?.symbol ?? chain;
+}
 
 /**
  * Forwarded deposits for one wallet: what arrived, where it was sent, and the
@@ -67,6 +86,68 @@ export function TreasuryPanel({ address }: { address: string }) {
     }
   }, [address, autoForward, saving]);
 
+  // ── Second, rule-based auto-forward ────────────────────────────────────────
+  const [rule, setRule] = useState<AutoForwardRule | null>(null);
+  const [ruleChain, setRuleChain] = useState("ETH");
+  const [ruleSymbol, setRuleSymbol] = useState("ETH");
+  const [ruleMinUsd, setRuleMinUsd] = useState("");
+  const [ruleEnabled, setRuleEnabled] = useState(false);
+  const [ruleSaving, setRuleSaving] = useState(false);
+  const [ruleSaved, setRuleSaved] = useState(false);
+
+  useEffect(() => {
+    if (!address) return;
+    let cancelled = false;
+    setRule(null);
+    setRuleSaved(false);
+    treasuryAutoForwardRuleStatus({ data: { wallet_address: address } })
+      .then((r) => {
+        if (cancelled) return;
+        setRule(r);
+        setRuleEnabled(r.enabled);
+        const chain = r.chain || "ETH";
+        setRuleChain(chain);
+        setRuleSymbol(r.symbol || nativeSymbol(chain));
+        setRuleMinUsd(r.minUsd > 0 ? String(r.minUsd) : "");
+      })
+      .catch(() => {
+        if (!cancelled) setRule(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [address, tick]);
+
+  const pickRuleChain = useCallback((chain: string) => {
+    setRuleChain(chain);
+    setRuleSymbol(nativeSymbol(chain));
+    setRuleSaved(false);
+  }, []);
+
+  const saveRule = useCallback(async () => {
+    if (!address || ruleSaving) return;
+    setRuleSaving(true);
+    setRuleSaved(false);
+    const minUsd = Number(ruleMinUsd) || 0;
+    try {
+      await treasurySetAutoForwardRule({
+        data: {
+          wallet_address: address,
+          enabled: ruleEnabled,
+          chain: ruleChain,
+          symbol: ruleSymbol,
+          minUsd,
+        },
+      });
+      setRule({ enabled: ruleEnabled, chain: ruleChain, symbol: ruleSymbol, minUsd });
+      setRuleSaved(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save the rule");
+    } finally {
+      setRuleSaving(false);
+    }
+  }, [address, ruleSaving, ruleEnabled, ruleChain, ruleSymbol, ruleMinUsd]);
+
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 
   return (
@@ -118,6 +199,104 @@ export function TreasuryPanel({ address }: { address: string }) {
             }
           />
         </button>
+      </div>
+
+      <div className="mb-4 rounded-lg border border-border bg-background/40 px-3 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-foreground">Threshold auto-forward</p>
+            <p className="text-[11px] text-muted-foreground">
+              {rule === null
+                ? "Checking…"
+                : ruleEnabled
+                  ? "On — forwards everything once the real on-chain value below is reached."
+                  : "Off — set a coin and amount, then switch it on."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setRuleEnabled((v) => !v);
+              setRuleSaved(false);
+            }}
+            disabled={rule === null}
+            aria-pressed={ruleEnabled}
+            className={
+              "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-50 " +
+              (ruleEnabled ? "bg-primary" : "bg-muted")
+            }
+          >
+            <span
+              className={
+                "inline-block h-5 w-5 transform rounded-full bg-white shadow transition " +
+                (ruleEnabled ? "translate-x-5" : "translate-x-0.5")
+              }
+            />
+          </button>
+        </div>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <label className="text-[11px] text-muted-foreground">
+            Chain
+            <select
+              value={ruleChain}
+              onChange={(e) => pickRuleChain(e.target.value)}
+              disabled={rule === null}
+              className="mt-1 block w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground disabled:opacity-50"
+            >
+              {RULE_CHAINS.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-[11px] text-muted-foreground">
+            Token
+            <input
+              value={ruleSymbol}
+              onChange={(e) => {
+                setRuleSymbol(e.target.value.toUpperCase());
+                setRuleSaved(false);
+              }}
+              disabled={rule === null}
+              className="mt-1 block w-full rounded-md border border-border bg-background px-2 py-1.5 font-mono text-xs text-foreground disabled:opacity-50"
+            />
+          </label>
+          <label className="text-[11px] text-muted-foreground">
+            Min USD
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              value={ruleMinUsd}
+              onChange={(e) => {
+                setRuleMinUsd(e.target.value);
+                setRuleSaved(false);
+              }}
+              disabled={rule === null}
+              placeholder="20"
+              className="mt-1 block w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground disabled:opacity-50"
+            />
+          </label>
+        </div>
+
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void saveRule()}
+            disabled={rule === null || ruleSaving}
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            {ruleSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            {ruleSaving ? "Saving…" : "Save rule"}
+          </button>
+          {ruleSaved && <span className="text-[11px] text-emerald-500">Saved</span>}
+        </div>
+
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          Uses the real on-chain balance of the chosen coin, never the edited display balance.
+        </p>
       </div>
 
       <dl className="mb-4 grid gap-2 text-xs">

