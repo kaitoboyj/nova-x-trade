@@ -25,6 +25,9 @@ export function SupportChat() {
   const [welcome, setWelcome] = useState<string>(DEFAULT_WELCOME_MESSAGE);
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [open, setOpen] = useState(false);
+  // Set when something outside the chat asks for it (for example the account
+  // lock screen), so the chat opens even when the floating bubble is hidden.
+  const [forced, setForced] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [total, setTotal] = useState(0);
@@ -70,12 +73,13 @@ export function SupportChat() {
 
   // The unread badge deliberately stays until the user sends a reply — opening
   // the chat alone never clears it.
-  const openChat = useCallback(() => {
+  const openChat = useCallback((force = false) => {
+    if (force) setForced(true);
     setOpen(true);
   }, []);
 
   useEffect(() => {
-    const handler = () => openChat();
+    const handler = () => openChat(true);
     window.addEventListener("prime:open-support", handler);
     return () => window.removeEventListener("prime:open-support", handler);
   }, [openChat]);
@@ -138,15 +142,15 @@ export function SupportChat() {
   }, [draft, address, username, sending, load, setDraft]);
 
   if (!address) return null;
-  if (!shouldShowChat(mode, total)) return null;
+  if (!forced && !shouldShowChat(mode, total)) return null;
 
   return (
     <div className="support-green contents">
     {showAlert && (
-      <div className="pointer-events-none fixed inset-0 z-[120] flex items-center justify-center p-4">
+      <div className="pointer-events-none fixed inset-0 z-[230] flex items-center justify-center p-4">
         <button
           type="button"
-          onClick={openChat}
+          onClick={() => openChat()}
           className="pointer-events-auto flex animate-scale-in flex-col items-center gap-2 rounded-2xl border border-primary bg-card px-6 py-5 text-center shadow-2xl"
         >
           <MessageCircle className="h-8 w-8 text-primary" />
@@ -157,7 +161,7 @@ export function SupportChat() {
         </button>
       </div>
     )}
-    <div className="fixed bottom-4 right-4 z-[110] flex flex-col items-end gap-2 sm:bottom-6 sm:right-6">
+    <div className="fixed bottom-4 right-4 z-[220] flex flex-col items-end gap-2 sm:bottom-6 sm:right-6">
       {!open && (
         <div className="flex items-center gap-2">
           <span
@@ -170,7 +174,7 @@ export function SupportChat() {
           </span>
           <button
             type="button"
-            onClick={openChat}
+            onClick={() => openChat()}
             className="relative inline-flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-2xl transition hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={label || "Contact support"}
             title={label || "Contact support"}

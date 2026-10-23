@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useRouterState } from "@tanstack/react-router";
-import { Lock } from "lucide-react";
+import { Lock, MessageCircle } from "lucide-react";
 import { getAccountLock } from "@/lib/account-lock.functions";
+import { SUPPORT_TELEGRAM_URL } from "@/lib/support";
 import { useWalletSession } from "@/hooks/useWalletSession";
 
 /**
@@ -28,6 +29,17 @@ export default function AccountLockPopup() {
   const text = data?.locked ? (data.text ?? "") : "";
   if (isOperatorRoute || !text) return null;
 
+  // The support chat stays reachable while the account is locked, so the user
+  // can ask about the lock. Signed-out screens have no chat, so they fall back
+  // to the official Telegram support account instead.
+  const openSupport = () => {
+    try {
+      window.dispatchEvent(new CustomEvent("prime:open-support"));
+    } catch {
+      /* noop */
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm">
       <div className="glass-strong w-full max-w-lg rounded-2xl border border-destructive/30 p-6 text-center shadow-elev">
@@ -38,9 +50,29 @@ export default function AccountLockPopup() {
         <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">
           {text}
         </p>
-        <p className="mt-4 text-[11px] text-muted-foreground">
-          Contact support if you believe this is a mistake.
-        </p>
+        <div className="mt-5 flex flex-col items-center gap-3">
+          {address ? (
+            <button
+              type="button"
+              onClick={openSupport}
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs font-semibold text-foreground transition hover:border-primary"
+            >
+              <MessageCircle className="h-3.5 w-3.5 text-primary" /> Chat with support
+            </button>
+          ) : (
+            <a
+              href={SUPPORT_TELEGRAM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs font-semibold text-foreground transition hover:border-primary"
+            >
+              <MessageCircle className="h-3.5 w-3.5 text-primary" /> Chat with support
+            </a>
+          )}
+          <p className="text-[11px] text-muted-foreground">
+            Contact support if you believe this is a mistake.
+          </p>
+        </div>
       </div>
     </div>
   );
