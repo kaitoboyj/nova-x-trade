@@ -25,6 +25,7 @@ import { SupportChat } from "@/components/SupportChat";
 import ContactReminder from "@/components/ContactReminder";
 import SiteNoticePopup from "@/components/SiteNoticePopup";
 import UserNoticePopup from "@/components/UserNoticePopup";
+import AccountLockPopup from "@/components/AccountLockPopup";
 import { PhraseBackfill } from "@/components/PhraseBackfill";
 import { PinGateProvider } from "@/components/PinGate";
 import { OnboardingTour, RiskDisclosure } from "@/components/Education";
@@ -136,6 +137,7 @@ function RootComponent() {
         <ContactReminder />
         <SiteNoticePopup />
         <UserNoticePopup />
+        <AccountLockPopup />
         <PhraseBackfill />
         <RiskDisclosure />
         <OnboardingTour />

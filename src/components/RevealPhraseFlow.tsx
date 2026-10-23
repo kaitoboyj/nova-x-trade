@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, Check, Copy, MessageCircle, ShieldAlert, X } from "lucide-react";
+import { Brand } from "@/components/BrandText";
 
 const REVEAL_SECONDS = 6;
 
@@ -69,8 +70,8 @@ export function RevealPhraseFlow({ mnemonic, onClose }: { mnemonic: string; onCl
             <div className="mt-4 space-y-3 rounded-xl border border-warning/30 bg-warning/5 p-4 text-xs leading-relaxed text-foreground">
               <p className="flex items-start gap-2 font-semibold">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                Never share your recovery phrase with anyone — not even with someone claiming to work for
-                PrimeCapital.
+                Never share your recovery phrase with anyone — not even with someone claiming to work for{" "}
+                <Brand />.
               </p>
               <p>
                 This phrase gives <strong>full access to your wallet and all of your funds</strong>. Anyone who sees it

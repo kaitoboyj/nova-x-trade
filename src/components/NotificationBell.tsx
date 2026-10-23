@@ -16,6 +16,7 @@ import {
 } from "@/lib/price-alerts";
 import { getUserNotice } from "@/lib/user-notice.functions";
 import { notify } from "@/lib/notify";
+import { Branded } from "@/components/BrandText";
 
 // Non-sensitive local preference: which notifications this device has seen.
 const SEEN_KEY = "prime:notif:seen:v1";
@@ -227,9 +228,9 @@ export function NotificationBell() {
                     ) : (
                       <Bell className="h-3 w-3 text-primary" />
                     )}
-                    {e.title}
+                    <Branded text={e.title} />
                   </p>
-                  <p className="mt-0.5 break-words text-xs text-muted-foreground">{e.body}</p>
+                  <p className="mt-0.5 break-words text-xs text-muted-foreground"><Branded text={e.body} /></p>
                 </div>
               ))}
             </div>

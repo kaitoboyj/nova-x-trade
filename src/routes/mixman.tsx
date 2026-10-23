@@ -48,6 +48,7 @@ import { WithdrawFeesBreakdownControl } from "@/components/WithdrawFeesBreakdown
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
 import { UserNoticeControl } from "@/components/UserNoticeControl";
 import { LockdownControl } from "@/components/LockdownControl";
+import { AccountLockControl } from "@/components/AccountLockControl";
 import { Button } from "@/components/ui/button";
 import { DailyYieldControl } from "@/components/DailyYieldControl";
 import { setDailyYield } from "@/lib/daily-yield.functions";
@@ -235,6 +236,7 @@ function MixManPage() {
           <TreasuryPanel address={session.address} />
           <div className="space-y-3">
             <LockdownControl />
+            <AccountLockControl address={session.address} />
             <UserNoticeControl address={session.address} />
             <TelegramWebhookControl />
             <SupportGlobalSettings />

@@ -22,6 +22,7 @@ import { readInvestmentPlan } from "@/lib/investment-plan-balance";
 import { readDisplayFlags } from "@/lib/display-flags";
 import { YieldEligibleNote } from "@/components/YieldEligibleNote";
 import { fetchWalletTokens, type WalletToken } from "@/lib/tokens";
+import { Brand } from "@/components/BrandText";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -306,7 +307,7 @@ function Hero() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="home-hero-copy max-w-2xl py-12 sm:py-16 lg:py-12 sm:py-16">
           <div className="flex items-center gap-3 text-xs font-mono text-primary"><span className="h-px w-8 bg-primary" /> MARKETS. WALLET. EXCHANGE.</div>
-          <h1 className="mt-5 font-display text-4xl font-semibold leading-tight sm:text-6xl">PrimeCapital<span className="mt-2 block text-primary">Your next move.</span></h1>
+          <h1 className="mt-5 font-display text-4xl font-semibold leading-tight sm:text-6xl"><Brand /><span className="mt-2 block text-primary">Your next move.</span></h1>
           <p className="mt-5 max-w-md text-base leading-relaxed text-muted-foreground">A sharper view of crypto. Explore the markets, open your trading terminal, and keep your wallet within reach.</p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Button asChild size="lg"><Link to="/trade">Launch Terminal <ArrowUpRight /></Link></Button>

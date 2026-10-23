@@ -13,7 +13,7 @@ export function Footer() {
               alt="PrimeCapital"
               className="h-9 w-9 rounded-md object-contain"
             />
-            <span className="font-display text-base font-semibold">Prime<span className="text-gradient">Capital</span></span>
+            <span translate="no" className="notranslate font-display text-base font-semibold">Prime<span className="text-gradient">Capital</span></span>
           </div>
           <p className="text-sm text-muted-foreground max-w-xs">
             Institutional-grade crypto trading and self-custody, in one interface.
@@ -29,7 +29,7 @@ export function Footer() {
       </div>
       <div className="border-t border-white/5">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-muted-foreground">
-          <p>© {new Date().getFullYear()} PrimeCapital Labs. Trading crypto carries risk.</p>
+          <p>© {new Date().getFullYear()} <span translate="no" className="notranslate">PrimeCapital</span> Labs. Trading crypto carries risk.</p>
           <div className="flex items-center gap-4">
             <Link to="/how-it-works" className="hover:text-foreground">How it works</Link>
             <LanguageToggle />

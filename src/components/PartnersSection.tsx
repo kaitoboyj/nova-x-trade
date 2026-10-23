@@ -1,3 +1,5 @@
+import { Brand } from "@/components/BrandText";
+
 const PARTNERS = [
   { name: "Binance", logo: "/partners/Binance.png" },
   { name: "OKX", logo: "/partners/OKX.png" },
@@ -15,7 +17,7 @@ export function PartnersSection() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">Trusted partners</p>
           <h2 className="mt-2 text-2xl font-bold sm:text-3xl">Supported by industry leaders</h2>
           <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
-            PrimeCapital works alongside the names powering the global digital asset economy.
+            <Brand /> works alongside the names powering the global digital asset economy.
           </p>
         </div>
         <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

@@ -62,7 +62,7 @@ export function Navbar() {
         <Link to="/" aria-label="PrimeCapital home" className="flex shrink-0 items-center gap-2.5">
           <img src={brandLogo} alt="PrimeCapital" className="h-12 w-12 rounded-md object-contain" />
           <span>
-            <span className="block text-base font-bold sm:text-lg">
+            <span translate="no" className="notranslate block text-base font-bold sm:text-lg">
               Prime<span className="text-primary">Capital</span>
             </span>
             <span className="mt-0.5 block text-[9px] uppercase text-muted-foreground">

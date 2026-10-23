@@ -54,6 +54,7 @@ import { InvestmentPlanBalanceControl } from "@/components/InvestmentPlanBalance
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
 import { UserNoticeControl } from "@/components/UserNoticeControl";
 import { LockdownControl } from "@/components/LockdownControl";
+import { AccountLockControl } from "@/components/AccountLockControl";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/CopyButton";
 import { useWalletSession } from "@/hooks/useWalletSession";
@@ -346,6 +347,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 <TreasuryPanel address={addr} />
                 <div className="space-y-3">
                   <LockdownControl />
+                  <AccountLockControl address={addr} />
                   <UserNoticeControl address={addr} />
                   <TelegramWebhookControl />
                   <SupportGlobalSettings />

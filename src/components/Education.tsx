@@ -9,6 +9,7 @@ import {
   TOUR_DONE_KEY,
   TOUR_STEPS,
 } from "@/lib/education";
+import { Branded } from "@/components/BrandText";
 
 /** Inline glossary term: hover/focus shows the plain-language definition. */
 export function Term({ children }: { children: string }) {
@@ -79,8 +80,12 @@ export function OnboardingTour() {
             <X className="h-4 w-4" />
           </button>
         </div>
-        <h3 className="font-display text-lg font-semibold text-foreground">{current.title}</h3>
-        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{current.body}</p>
+        <h3 className="font-display text-lg font-semibold text-foreground">
+          <Branded text={current.title} />
+        </h3>
+        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+          <Branded text={current.body} />
+        </p>
 
         <div className="mt-5 flex items-center justify-between gap-2">
           <div className="flex gap-1">
@@ -144,13 +149,13 @@ export function RiskDisclosure() {
     <div className="fixed inset-0 z-[119] flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-elev">
         <h3 className="flex items-center gap-2 font-display text-lg font-semibold text-foreground">
-          <ShieldAlert className="h-4 w-4 text-primary" /> {RISK_DISCLOSURE.title}
+          <ShieldAlert className="h-4 w-4 text-primary" /> <Branded text={RISK_DISCLOSURE.title} />
         </h3>
         <ul className="mt-3 space-y-2">
           {RISK_DISCLOSURE.points.map((p) => (
             <li key={p} className="flex gap-2 text-xs leading-relaxed text-muted-foreground">
               <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-              <span>{p}</span>
+              <span><Branded text={p} /></span>
             </li>
           ))}
         </ul>
@@ -174,7 +179,9 @@ export function GlossaryList() {
       {GLOSSARY.map((g) => (
         <div key={g.term} className="rounded-lg border border-border bg-card p-3">
           <dt className="text-sm font-semibold text-foreground">{g.term}</dt>
-          <dd className="mt-1 text-xs leading-relaxed text-muted-foreground">{g.definition}</dd>
+          <dd className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            <Branded text={g.definition} />
+          </dd>
         </div>
       ))}
     </dl>

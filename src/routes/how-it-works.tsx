@@ -1,6 +1,7 @@
 import { brandPreviewMeta } from "@/lib/brand";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BarChart3, KeyRound, Newspaper, ShieldCheck, Sparkles, UserCheck, Wallet2 } from "lucide-react";
+import { Brand, Branded } from "@/components/BrandText";
 
 export const Route = createFileRoute("/how-it-works")({
   head: () => ({
@@ -61,7 +62,7 @@ function HowItWorksPage() {
       <div className="text-center max-w-2xl mx-auto">
         <p className="text-xs uppercase tracking-widest text-primary/90 font-medium">Guide</p>
         <h1 className="mt-2 font-display text-4xl md:text-5xl font-semibold leading-tight">
-          How <span className="text-gradient">PrimeCapital</span> works
+          How <Brand className="text-gradient" /> works
         </h1>
         <p className="mt-4 text-muted-foreground">
           Everything you need to know to go from zero to trading with a self-custody wallet — in about a minute.
@@ -77,7 +78,9 @@ function HowItWorksPage() {
               </span>
               <h3 className="font-display text-lg font-semibold">{s.title}</h3>
             </div>
-            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{s.body}</p>
+            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+              <Branded text={s.body} />
+            </p>
           </div>
         ))}
       </div>

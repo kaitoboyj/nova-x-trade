@@ -1,6 +1,7 @@
 import { brandPreviewMeta } from "@/lib/brand";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Brand } from "@/components/BrandText";
 import {
   ArrowLeftRight,
   Wallet,
@@ -90,7 +91,7 @@ function SwapPage() {
       <header className="mb-7 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="mb-2 text-[10px] uppercase text-muted-foreground">
-            PrimeCapital <span className="text-primary">/ Cross-chain</span>
+            <Brand /> <span className="text-primary">/ Cross-chain</span>
           </p>
           <h1 className="text-3xl font-semibold sm:text-4xl">
             Swap assets<span className="text-primary">.</span>

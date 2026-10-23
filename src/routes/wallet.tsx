@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { WalletHoldings } from "@/components/WalletHoldings";
 import { brandLogo } from "@/lib/brand";
+import { Brand, Branded } from "@/components/BrandText";
 import {
   isUsernameTaken,
   loadSession,
@@ -429,7 +430,7 @@ function Header({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="mb-2 text-[10px] uppercase text-muted-foreground">
-            PrimeCapital <span className="text-primary">/ Self-custody</span>
+            <Brand /> <span className="text-primary">/ Self-custody</span>
           </p>
           <h1 className="text-3xl font-semibold sm:text-4xl">
             Your portfolio<span className="text-primary">.</span>
@@ -1104,9 +1105,11 @@ function WalletDetail({ wallet, onDelete }: { wallet: HDWallet; onDelete: () => 
 
         <p className="mt-4 text-xs text-muted-foreground flex items-start gap-2">
           <ShieldCheck className="h-4 w-4 shrink-0 text-success mt-0.5" />
-          {wallet.mnemonic
-            ? "This phrase never leaves your device. PrimeCapital cannot recover it if lost."
-            : "This wallet is signed in on this device. Re-import the seed phrase to reveal recovery words again."}
+          {wallet.mnemonic ? (
+            <Branded text="This phrase never leaves your device. PrimeCapital cannot recover it if lost." />
+          ) : (
+            "This wallet is signed in on this device. Re-import the seed phrase to reveal recovery words again."
+          )}
         </p>
       </div>
     </section>

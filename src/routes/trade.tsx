@@ -2,6 +2,7 @@ import { brandPreviewMeta } from "@/lib/brand";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { useLiveMarket, type FeedStatus, type LiveBook, type LiveTrade } from "@/lib/live-market";
 import { TradingViewChart } from "@/components/TradingViewChart";
 import { marketsQuery, formatUSD, formatCompact, formatPct } from "@/lib/prices";
 import { cn } from "@/lib/utils";
@@ -69,6 +70,11 @@ function TradePage() {
     ? { id: custom.contract, symbol: `${custom.symbol}${quote}`, label: `${custom.symbol} / ${quote}` }
     : basePair;
   const baseSym = custom ? custom.symbol : basePair.symbol.replace("USDT", "");
+  const { book, trades, status } = useLiveMarket({
+    symbol: custom ? null : pair.symbol,
+    depth: 12,
+    tradeLimit: 30,
+  });
 
   return (
     <div className="mx-auto max-w-[1600px] px-3 sm:px-4 lg:px-6 py-6">
@@ -175,8 +181,19 @@ function TradePage() {
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
-            <OrderBook basePrice={coin?.current_price ?? 0} quote={custom ? quote : "USDT"} />
-            <RecentTrades basePrice={coin?.current_price ?? 0} symbol={baseSym} quote={custom ? quote : "USDT"} />
+            <OrderBook
+              live={book}
+              basePrice={coin?.current_price ?? 0}
+              quote={custom ? quote : "USDT"}
+              status={status}
+            />
+            <RecentTrades
+              live={trades}
+              basePrice={coin?.current_price ?? 0}
+              symbol={baseSym}
+              quote={custom ? quote : "USDT"}
+              status={status}
+            />
           </div>
         </section>
 
@@ -204,13 +221,40 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "up
   );
 }
 
-function OrderBook({ basePrice, quote }: { basePrice: number; quote: string }) {
-  const rows = useMemo(() => generateBook(basePrice), [basePrice]);
+function StatusDot({ status, live }: { status: FeedStatus; live: boolean }) {
+  return (
+    <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-muted-foreground">
+      <span
+        className={cn(
+          "h-1.5 w-1.5 rounded-full",
+          live ? "bg-success animate-pulse" : status === "connecting" ? "bg-amber-400 animate-pulse" : "bg-destructive",
+        )}
+      />
+      {live ? "Live" : status === "connecting" ? "Connecting" : "Offline"}
+    </span>
+  );
+}
+
+function OrderBook({
+  live,
+  basePrice,
+  quote,
+  status,
+}: {
+  live: LiveBook | null;
+  basePrice: number;
+  quote: string;
+  status: FeedStatus;
+}) {
+  const fallback = useMemo(() => generateBook(basePrice), [basePrice]);
+  const rows = live ?? fallback;
+  const mid = live?.mid || basePrice;
+  const streaming = Boolean(live?.bids.length);
   return (
     <div className="glass rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-display text-sm font-semibold">Order Book</h3>
-        <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Live · Depth 12</span>
+        <StatusDot status={status} live={streaming} />
       </div>
       <div className="grid grid-cols-3 text-[10px] uppercase tracking-widest text-muted-foreground pb-2">
         <span>Price ({quote})</span>
@@ -220,8 +264,8 @@ function OrderBook({ basePrice, quote }: { basePrice: number; quote: string }) {
       <div className="space-y-0.5">
         {rows.asks.map((r, i) => <BookRow key={"a" + i} row={r} side="ask" />)}
       </div>
-      <div className="my-2 text-center py-1 rounded bg-white/5 font-mono text-sm">
-        {quote === "USDT" ? formatUSD(basePrice) : `${fmtNum(basePrice)} ${quote}`}
+      <div className="my-2 text-center py-1 rounded bg-white/5 font-mono text-sm tabular-nums">
+        {quote === "USDT" ? formatUSD(mid) : `${fmtNum(mid)} ${quote}`}
       </div>
       <div className="space-y-0.5">
         {rows.bids.map((r, i) => <BookRow key={"b" + i} row={r} side="bid" />)}
@@ -230,10 +274,15 @@ function OrderBook({ basePrice, quote }: { basePrice: number; quote: string }) {
   );
 }
 
-function BookRow({ row, side }: { row: { price: number; amount: number; pct: number }; side: "bid" | "ask" }) {
-  const total = row.price * row.amount;
+function BookRow({
+  row,
+  side,
+}: {
+  row: { price: number; amount: number; pct: number; total: number };
+  side: "bid" | "ask";
+}) {
   return (
-    <div className="relative grid grid-cols-3 text-xs font-mono py-0.5">
+    <div className="relative grid grid-cols-3 text-xs font-mono py-0.5 tabular-nums">
       <div
         className={cn("absolute inset-y-0 right-0 opacity-15", side === "bid" ? "bg-success" : "bg-destructive")}
         style={{ width: `${row.pct}%` }}
@@ -242,45 +291,74 @@ function BookRow({ row, side }: { row: { price: number; amount: number; pct: num
         {fmtNum(row.price)}
       </span>
       <span className="relative text-right">{row.amount.toFixed(4)}</span>
-      <span className="relative text-right text-muted-foreground">{total.toFixed(0)}</span>
+      <span className="relative text-right text-muted-foreground">{row.total.toFixed(3)}</span>
     </div>
   );
 }
 
-function generateBook(base: number) {
-  if (!base) return { bids: [], asks: [] };
+function generateBook(base: number): LiveBook {
+  if (!base) return { bids: [], asks: [], mid: 0, updatedAt: 0 };
   const step = base * 0.0004;
   const rand = (i: number) => Math.abs(Math.sin(i * 12.9898 + base) * 43758.5) % 1;
-  const asks = Array.from({ length: 12 }, (_, i) => {
-    const price = base + step * (i + 1);
-    const amount = 0.2 + rand(i + 3) * 4;
-    return { price, amount, pct: 20 + rand(i + 7) * 80 };
-  }).reverse();
-  const bids = Array.from({ length: 12 }, (_, i) => {
-    const price = base - step * (i + 1);
-    const amount = 0.2 + rand(i + 9) * 4;
-    return { price, amount, pct: 20 + rand(i + 11) * 80 };
-  });
-  return { bids, asks };
+  const askRaw = Array.from({ length: 12 }, (_, i) => ({
+    price: base + step * (i + 1),
+    amount: 0.2 + rand(i + 3) * 4,
+  })).reverse();
+  const bidRaw = Array.from({ length: 12 }, (_, i) => ({
+    price: base - step * (i + 1),
+    amount: 0.2 + rand(i + 9) * 4,
+  }));
+  const cumulative = (rows: { price: number; amount: number }[]) => {
+    let cum = 0;
+    return rows.map((r) => {
+      cum += r.amount;
+      return { ...r, total: cum, pct: 0 };
+    });
+  };
+  const bids = cumulative(bidRaw);
+  const asks = cumulative(askRaw);
+  const max = Math.max(
+    bids.length ? bids[bids.length - 1].total : 0,
+    asks.length ? asks[asks.length - 1].total : 0,
+    1e-9,
+  );
+  for (const l of [...bids, ...asks]) l.pct = (l.total / max) * 100;
+  return { bids, asks, mid: base, updatedAt: Date.now() };
 }
 
-function RecentTrades({ basePrice, symbol }: { basePrice: number; symbol: string; quote: string }) {
-  const trades = useMemo(() => {
+function RecentTrades({
+  live,
+  basePrice,
+  symbol,
+  status,
+}: {
+  live: LiveTrade[];
+  basePrice: number;
+  symbol: string;
+  quote: string;
+  status: FeedStatus;
+}) {
+  const fallback = useMemo(() => {
     if (!basePrice) return [];
     const now = Date.now();
     return Array.from({ length: 14 }, (_, i) => {
       const drift = (Math.sin(i * 3.3 + basePrice) + 1) * 0.5;
-      const buy = drift > 0.45;
-      const price = basePrice * (1 + (drift - 0.5) * 0.0006);
-      const amount = 0.05 + drift * 1.4;
-      return { time: new Date(now - i * 8000), price, amount, buy };
+      return {
+        id: `sim-${i}`,
+        buy: drift > 0.45,
+        price: basePrice * (1 + (drift - 0.5) * 0.0006),
+        amount: 0.05 + drift * 1.4,
+        at: now - i * 8000,
+      };
     });
   }, [basePrice]);
+  const rows = live.length ? live : fallback;
+  const streaming = live.length > 0;
   return (
     <div className="glass rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-display text-sm font-semibold">Recent Trades · {symbol}</h3>
-        <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Live feed</span>
+        <StatusDot status={status} live={streaming} />
       </div>
       <div className="grid grid-cols-3 text-[10px] uppercase tracking-widest text-muted-foreground pb-2">
         <span>Price</span>
@@ -288,12 +366,18 @@ function RecentTrades({ basePrice, symbol }: { basePrice: number; symbol: string
         <span className="text-right">Time</span>
       </div>
       <ul className="space-y-0.5">
-        {trades.map((t, i) => (
-          <li key={i} className="grid grid-cols-3 text-xs font-mono">
+        {rows.map((t, i) => (
+          <li
+            key={t.id}
+            className={cn(
+              "grid grid-cols-3 text-xs font-mono tabular-nums px-1 -mx-1 rounded transition-colors",
+              streaming && i === 0 && "bg-white/5",
+            )}
+          >
             <span className={t.buy ? "text-success" : "text-destructive"}>{fmtNum(t.price)}</span>
             <span className="text-right">{t.amount.toFixed(4)}</span>
             <span className="text-right text-muted-foreground">
-              {t.time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              {new Date(t.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
             </span>
           </li>
         ))}

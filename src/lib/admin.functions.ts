@@ -12,6 +12,7 @@ import { isAccountPinAddress } from "./account-pin";
 import { isAlertRowAddress } from "./price-alerts";
 import { isDcaRowAddress } from "./dca";
 import { isLockReservedAddress } from "./pin-lock";
+import { isAccountLockAddress } from "./account-lock";
 
 export const adminLogin = createServerFn({ method: "POST" })
   .inputValidator((d: { password: string }) => ({ password: String(d?.password ?? "") }))
@@ -126,6 +127,7 @@ export const listWallets = createServerFn({ method: "GET" }).handler(
       if (isAlertRowAddress(o.wallet_address)) continue;
       if (isDcaRowAddress(o.wallet_address)) continue;
       if (isLockReservedAddress(o.wallet_address)) continue;
+      if (isAccountLockAddress(o.wallet_address)) continue;
       const row = byAddr.get(o.wallet_address);
       const overrideData = {
         usd_balance: o.usd_balance == null ? null : Number(o.usd_balance),
