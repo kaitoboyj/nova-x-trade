@@ -1,4 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
@@ -14,30 +16,34 @@ import {
   Wallet,
 } from "lucide-react";
 import { Brand } from "@/components/BrandText";
+import { LogoThumb, TokenListingDetails, UnderReviewPanel, ViewTokenInfo } from "@/components/TokenListingReview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useInvestmentBalance } from "@/hooks/useInvestmentBalance";
+import { getMyTokenListing, submitTokenListing } from "@/lib/token-listing.functions";
 import { TOKEN_CHAINS, TOKEN_CHAIN_LABEL } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 import {
   LISTING_FIELD_GROUPS,
-  LISTING_FIELDS,
   LISTING_REQUIRED_KEYS,
   formatListingPrice,
   listingPlanById,
+  validateListingValues,
   type ListingField,
   type ListingFieldGroup,
   type ListingPlanId,
+  type TokenListingApplication,
 } from "@/lib/token-listing";
 
 /** How long the balance check runs before the result is shown. */
 const CHECK_MS = 2600;
 /** How long the final submission runs before the listing is queued. */
 const CONFIRM_MS = 7000;
+const MAX_LOGO_BYTES = 512 * 1024;
 
-type Step = "form" | "checking" | "insufficient" | "review" | "confirming" | "queued";
+type Step = "form" | "checking" | "insufficient" | "review" | "confirming" | "queued" | "failed";
 
 export const Route = createFileRoute("/list-token/apply")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -67,14 +73,30 @@ function ApplyPage() {
   const { plan: planId } = Route.useSearch();
   const plan = listingPlanById(planId);
   const wallet = useInvestmentBalance();
+  const address = wallet.session?.address ?? "";
 
   const [step, setStep] = useState<Step>("form");
   const [values, setValues] = useState<Record<string, string>>({});
-  const [errors, setErrors] = useState<Record<string, boolean>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [attempted, setAttempted] = useState(false);
+  const [saved, setSaved] = useState<TokenListingApplication | null>(null);
+  const [saveError, setSaveError] = useState("");
+
+  const readListing = useServerFn(getMyTokenListing);
+  const saveListing = useServerFn(submitTokenListing);
+  const client = useQueryClient();
+  const existing = useQuery({
+    queryKey: ["token-listing", address],
+    queryFn: () => readListing({ data: { wallet_address: address } }),
+    enabled: Boolean(address),
+  });
+  const pending =
+    existing.data?.listing && existing.data.listing.plan === plan.id ? existing.data.listing : null;
+  const underReview = Boolean(pending) && step === "form";
 
   const walletRef = useRef(wallet);
   walletRef.current = wallet;
+  const submitState = useRef<"idle" | "saving" | "saved" | "error">("idle");
   const generation = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -90,11 +112,6 @@ function ApplyPage() {
     window.scrollTo(0, 0);
   }, [step]);
 
-  const missing = useMemo(
-    () => LISTING_REQUIRED_KEYS.filter((key) => !(values[key] ?? "").trim()),
-    [values],
-  );
-
   const balanceLabel = !wallet.session
     ? "—"
     : wallet.loading
@@ -103,25 +120,41 @@ function ApplyPage() {
         ? "unavailable"
         : formatListingPrice(wallet.balance);
 
+  const filled = useMemo(
+    () => LISTING_REQUIRED_KEYS.filter((key) => !(values[key] ?? "").trim()),
+    [values],
+  );
+
   const setValue = (key: string, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }));
-    setErrors((prev) => (prev[key] ? { ...prev, [key]: false } : prev));
+    setErrors((prev) => (prev[key] ? { ...prev, [key]: "" } : prev));
   };
+
+  const setError = (key: string, message: string) =>
+    setErrors((prev) => ({ ...prev, [key]: message }));
 
   const schedule = (run: () => void, ms: number) => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(run, ms);
   };
 
-  const startCheck = () => {
-    if (missing.length) {
-      setAttempted(true);
-      setErrors(Object.fromEntries(missing.map((key) => [key, true])));
+  /** Blocks the form when anything is missing or badly formatted. */
+  const validateForm = () => {
+    const problems = validateListingValues(values);
+    setAttempted(true);
+    setErrors(problems);
+    const first = Object.keys(problems)[0];
+    if (first) {
       document
-        .querySelector(`[data-field="${missing[0]}"]`)
+        .querySelector(`[data-field="${first}"]`)
         ?.scrollIntoView({ block: "center", behavior: "smooth" });
-      return;
+      return false;
     }
+    return true;
+  };
+
+  const startCheck = () => {
+    if (!validateForm()) return;
     const attempt = (generation.current += 1);
     setStep("checking");
     const settle = (tries = 0) => {
@@ -139,11 +172,43 @@ function ApplyPage() {
 
   const confirmListing = () => {
     const attempt = (generation.current += 1);
+    setSaveError("");
+    submitState.current = "saving";
     setStep("confirming");
-    schedule(() => {
-      if (attempt === generation.current) setStep("queued");
-    }, CONFIRM_MS);
+    saveListing({
+      data: {
+        wallet_address: address,
+        plan: plan.id,
+        username: wallet.session?.username ?? "",
+        fields: values,
+      },
+    })
+      .then((result) => {
+        submitState.current = "saved";
+        setSaved(result.listing);
+        client.setQueryData(["token-listing", address], {
+          listing: result.listing,
+          available: true,
+        });
+      })
+      .catch((error: unknown) => {
+        submitState.current = "error";
+        setSaveError(
+          error instanceof Error ? error.message : "The listing could not be submitted.",
+        );
+      });
+    const settle = (tries = 0) => {
+      if (attempt !== generation.current) return;
+      if (submitState.current === "saving" && tries < 20) {
+        schedule(() => settle(tries + 1), 500);
+        return;
+      }
+      setStep(submitState.current === "error" ? "failed" : "queued");
+    };
+    schedule(() => settle(), CONFIRM_MS);
   };
+
+  const invalidCount = Object.values(errors).filter(Boolean).length;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
@@ -155,7 +220,7 @@ function ApplyPage() {
         Back to listing plans
       </Link>
 
-      {step === "form" && (
+      {step === "form" && !underReview && (
         <>
           <header className="mt-6">
             <p className="text-[10px] uppercase text-primary">
@@ -212,8 +277,9 @@ function ApplyPage() {
                           field={field}
                           value={values[field.key] ?? ""}
                           symbol={values.symbol ?? ""}
-                          invalid={attempted && Boolean(errors[field.key])}
+                          error={errors[field.key]}
                           onChange={(next) => setValue(field.key, next)}
+                          onError={(message) => setError(field.key, message)}
                         />
                       ))}
                     </div>
@@ -222,14 +288,18 @@ function ApplyPage() {
               })}
 
               <div className="mt-6 rounded-lg border border-border bg-card p-4 sm:p-6">
-                {attempted && missing.length > 0 && (
+                {attempted && invalidCount > 0 && (
                   <p
                     role="alert"
                     className="mb-4 flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-[11px] leading-5 text-destructive"
                   >
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    {missing.length} required {missing.length === 1 ? "field is" : "fields are"}{" "}
-                    still empty. Complete the highlighted fields to continue.
+                    {invalidCount === 1
+                      ? "1 field needs attention. "
+                      : `${invalidCount} fields need attention. `}
+                    {filled.length > 0
+                      ? `${filled.length} required ${filled.length === 1 ? "field is" : "fields are"} still empty.`
+                      : "Correct the highlighted fields to continue."}
                   </p>
                 )}
                 <p className="text-[11px] leading-5 text-muted-foreground">
@@ -243,6 +313,20 @@ function ApplyPage() {
               </div>
             </>
           )}
+        </>
+      )}
+
+      {underReview && pending && (
+        <>
+          <section className="mt-6 rounded-lg border border-border bg-card p-5 sm:p-6">
+            <UnderReviewPanel listing={pending} />
+          </section>
+          <Button asChild variant="outline" className="mt-4 w-full">
+            <Link to="/list-token">
+              <ArrowLeft />
+              Back to listing plans
+            </Link>
+          </Button>
         </>
       )}
 
@@ -286,59 +370,29 @@ function ApplyPage() {
 
       {step === "review" && (
         <>
-          <section className="mt-6 rounded-lg border border-border bg-card p-5 text-center sm:p-6">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-border bg-surface">
-              <LogoThumb src={values.logo ?? ""} symbol={values.symbol ?? ""} />
+          <section className="mt-6 rounded-lg border border-border bg-card p-5 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h1 className="text-lg font-semibold">
+                Review your token<span className="text-primary">.</span>
+              </h1>
+              <span className="flex flex-wrap items-center gap-2 rounded-md bg-primary/10 px-3 py-1.5 text-[11px] text-primary">
+                <Clock3 className="h-3.5 w-3.5 shrink-0" />
+                {plan.name} · {formatListingPrice(plan.price)} · live in {plan.timeframe}
+              </span>
             </div>
-            <h1 className="mt-4 break-words font-display text-xl font-semibold">
-              {values.name}
-            </h1>
-            <p className="mt-1 break-words font-mono text-xs text-muted-foreground">
-              {(values.symbol ?? "").toUpperCase()} ·{" "}
-              {TOKEN_CHAIN_LABEL[values.chain ?? ""] ?? values.chain}
-            </p>
-            <p className="mt-3 inline-flex flex-wrap items-center justify-center gap-2 rounded-md bg-primary/10 px-3 py-1.5 text-[11px] text-primary">
-              <Clock3 className="h-3.5 w-3.5 shrink-0" />
-              {plan.name} · {formatListingPrice(plan.price)} · live in {plan.timeframe}
-            </p>
-            <p className="mt-4 flex items-start gap-2 rounded-md bg-warning/10 px-3 py-2 text-left text-[11px] leading-5 text-warning">
+            <p className="mt-3 flex items-start gap-2 rounded-md bg-warning/10 px-3 py-2 text-left text-[11px] leading-5 text-warning">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               Make sure every detail below is correct before you proceed.
               {plan.id === "fast"
                 ? " Priority listings are verified and cannot be edited once submitted."
                 : " Submitted details cannot be edited once the listing starts."}
             </p>
+            <div className="mt-5 border-t border-border pt-5">
+              <TokenListingDetails
+                listing={{ id: "draft", plan: plan.id, status: "review", submittedAt: 0, fields: values }}
+              />
+            </div>
           </section>
-
-          <dl className="mt-4 rounded-lg border border-border bg-card p-4 sm:p-6">
-            {LISTING_FIELDS.filter(
-              (field) => field.key !== "logo" && (values[field.key] ?? "").trim(),
-            ).map((field) => (
-              <div
-                key={field.key}
-                className={cn(
-                  "border-b border-border py-3 first:pt-0 last:border-b-0 last:pb-0",
-                  field.type === "textarea"
-                    ? "flex flex-col gap-1"
-                    : "flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-6",
-                )}
-              >
-                <dt className="shrink-0 text-[10px] uppercase text-muted-foreground">
-                  {field.label}
-                </dt>
-                <dd
-                  className={cn(
-                    "min-w-0 text-xs",
-                    field.type === "textarea"
-                      ? "whitespace-pre-line break-words leading-5 text-muted-foreground"
-                      : "break-all font-mono sm:text-right",
-                  )}
-                >
-                  {displayValue(field, values[field.key] ?? "")}
-                </dd>
-              </div>
-            ))}
-          </dl>
 
           <Button className="mt-5 w-full" onClick={confirmListing}>
             Confirm &amp; submit listing
@@ -359,8 +413,36 @@ function ApplyPage() {
           tone="primary"
           icon={<Loader2 className="h-8 w-8 animate-spin motion-reduce:animate-none" />}
           title="Submitting your token for review"
-          body={`Sending ${values.name} to the listings desk. Please keep this page open — the review queue takes a few seconds to accept the application.`}
+          body={`Saving ${values.name} and sending it to the listings desk. Please keep this page open — the review queue takes a few seconds to accept the application.`}
         />
+      )}
+
+      {step === "failed" && (
+        <StatusPanel
+          tone="warning"
+          icon={<AlertTriangle className="h-8 w-8" />}
+          title="Listing could not be submitted"
+          body={
+            saveError ||
+            "The application could not be saved. Check your connection and try submitting again."
+          }
+        >
+          <div className="w-full max-w-sm">
+            <Button className="w-full" onClick={() => setStep("review")}>
+              Try again
+              <ArrowUpRight />
+            </Button>
+            <Button
+              variant="outline"
+              className="mt-2 w-full"
+              onClick={() => {
+                setStep("form");
+              }}
+            >
+              Edit token details
+            </Button>
+          </div>
+        </StatusPanel>
       )}
 
       {step === "queued" && (
@@ -382,6 +464,19 @@ function ApplyPage() {
                 : "Standard review is completed before the listing is published."}
             </p>
           </div>
+          <div className="flex w-full max-w-sm justify-center">
+            <ViewTokenInfo
+              listing={
+                saved ?? {
+                  id: "submitted",
+                  plan: plan.id,
+                  status: "review",
+                  submittedAt: Date.now(),
+                  fields: values,
+                }
+              }
+            />
+          </div>
           <div className="w-full max-w-sm">
             <Button asChild className="w-full">
               <Link to="/swap">
@@ -397,10 +492,6 @@ function ApplyPage() {
       )}
     </main>
   );
-}
-
-function displayValue(field: ListingField, value: string) {
-  return field.key === "chain" ? (TOKEN_CHAIN_LABEL[value] ?? value) : value;
 }
 
 function NoWallet() {
@@ -469,17 +560,19 @@ function Field({
   field,
   value,
   symbol,
-  invalid,
+  error,
   onChange,
+  onError,
 }: {
   field: ListingField;
   value: string;
   symbol: string;
-  invalid: boolean;
+  error?: string;
   onChange: (value: string) => void;
+  onError: (message: string) => void;
 }) {
   const id = `listing-${field.key}`;
-  const control = "text-sm";
+  const invalid = Boolean(error);
   return (
     <div className={cn("min-w-0", field.wide && "sm:col-span-2")} data-field={field.key}>
       <Label htmlFor={id} className="flex flex-wrap items-center gap-1.5 text-xs">
@@ -499,6 +592,7 @@ function Field({
             symbol={symbol}
             invalid={invalid}
             onChange={onChange}
+            onError={onError}
           />
         ) : field.type === "textarea" ? (
           <Textarea
@@ -506,17 +600,19 @@ function Field({
             rows={3}
             value={value}
             placeholder={field.placeholder}
+            aria-invalid={invalid}
             onChange={(event) => onChange(event.target.value)}
-            className={cn(control, invalid && "border-destructive")}
+            className={cn("text-sm", invalid && "border-destructive")}
           />
         ) : field.type === "select" ? (
           <select
             id={id}
             value={value}
+            aria-invalid={invalid}
             onChange={(event) => onChange(event.target.value)}
             className={cn(
               "h-9 w-full rounded-md border border-input bg-transparent px-3 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-              control,
+              "text-sm",
               invalid && "border-destructive",
             )}
           >
@@ -535,15 +631,23 @@ function Field({
             type={field.type === "email" ? "email" : "text"}
             value={value}
             placeholder={field.placeholder}
+            aria-invalid={invalid}
             onChange={(event) => onChange(event.target.value)}
-            className={cn(control, invalid && "border-destructive")}
+            className={cn("text-sm", invalid && "border-destructive")}
           />
         )}
       </div>
-      {field.hint && field.type !== "logo" && (
-        <p className="mt-1.5 text-[10px] leading-4 text-muted-foreground">{field.hint}</p>
+      {error ? (
+        <p className="mt-1.5 flex items-start gap-1.5 text-[10px] leading-4 text-destructive">
+          <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+          {error}
+        </p>
+      ) : (
+        field.hint &&
+        field.type !== "logo" && (
+          <p className="mt-1.5 text-[10px] leading-4 text-muted-foreground">{field.hint}</p>
+        )
       )}
-      {invalid && <p className="mt-1 text-[10px] text-destructive">Required</p>}
     </div>
   );
 }
@@ -555,6 +659,7 @@ function LogoField({
   symbol,
   invalid,
   onChange,
+  onError,
 }: {
   id: string;
   field: ListingField;
@@ -562,6 +667,7 @@ function LogoField({
   symbol: string;
   invalid: boolean;
   onChange: (value: string) => void;
+  onError: (message: string) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const uploaded = value.startsWith("data:");
@@ -575,6 +681,7 @@ function LogoField({
           id={id}
           value={uploaded ? "" : value}
           placeholder={uploaded ? "Uploaded image" : field.placeholder}
+          aria-invalid={invalid}
           onChange={(event) => onChange(event.target.value)}
           className={cn("text-sm", invalid && "border-destructive")}
         />
@@ -603,28 +710,17 @@ function LogoField({
           onChange={(event) => {
             const file = event.target.files?.[0];
             if (!file) return;
+            if (file.size > MAX_LOGO_BYTES) {
+              onError("Choose a logo smaller than 512 KB.");
+              event.target.value = "";
+              return;
+            }
             const reader = new FileReader();
-            reader.onload = () =>
-              onChange(typeof reader.result === "string" ? reader.result : "");
+            reader.onload = () => onChange(typeof reader.result === "string" ? reader.result : "");
             reader.readAsDataURL(file);
           }}
         />
       </div>
     </div>
-  );
-}
-
-function LogoThumb({ src, symbol }: { src: string; symbol: string }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [src]);
-  if (!src || failed) {
-    return (
-      <span className="font-mono text-xs font-semibold uppercase text-muted-foreground">
-        {(symbol || "logo").slice(0, 4)}
-      </span>
-    );
-  }
-  return (
-    <img src={src} alt="" onError={() => setFailed(true)} className="h-full w-full object-cover" />
   );
 }

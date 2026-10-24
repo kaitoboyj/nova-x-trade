@@ -1,4 +1,5 @@
 import { formatUSD } from "./prices";
+import { TOKEN_CHAINS } from "./tokens";
 
 /**
  * Token listing packages. The amounts are the listing fees quoted on the
@@ -228,3 +229,195 @@ export const LISTING_FIELDS: ListingField[] = LISTING_FIELD_GROUPS.flatMap((grou
 export const LISTING_REQUIRED_KEYS = LISTING_FIELDS.filter((field) => field.required).map(
   (field) => field.key,
 );
+
+// ── Validation ──────────────────────────────────────────────────────────────
+//
+// Everything the listings desk can reject is checked here, so the form and the
+// server agree on what "invalid" means.
+
+const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+/** Base58 Solana addresses; pump.fun mints are ordinary mints and pass too. */
+const SOL_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+export function isSolanaChain(chain: string): boolean {
+  return String(chain ?? "").trim().toUpperCase() === "SOL";
+}
+
+export function isContractAddress(chain: string, value: string): boolean {
+  const address = String(value ?? "").trim();
+  if (!address) return false;
+  return isSolanaChain(chain) ? SOL_ADDRESS_RE.test(address) : EVM_ADDRESS_RE.test(address);
+}
+
+/** A real web address: a scheme (added when missing), a host and a TLD. */
+export function isHttpUrl(value: string): boolean {
+  const raw = String(value ?? "").trim();
+  if (!raw || /\s/.test(raw)) return false;
+  const withScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(raw) ? raw : `https://${raw}`;
+  let url: URL;
+  try {
+    url = new URL(withScheme);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+  const host = url.hostname;
+  if (!/^[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+$/.test(host)) return false;
+  return /^[a-zA-Z]{2,}$/.test(host.split(".").pop() ?? "");
+}
+
+export function isEmailAddress(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(value ?? "").trim());
+}
+
+/** Digits only; commas and spaces are accepted as thousand separators. */
+function isWholeNumber(value: string, maxDigits: number): boolean {
+  const digits = String(value ?? "").replace(/[,\s_]/g, "");
+  return new RegExp(`^\\d{1,${maxDigits}}$`).test(digits);
+}
+
+/** Field key -> the reason it cannot be submitted. Empty means "valid". */
+export function validateListingValues(values: Record<string, string>): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const get = (key: string) => String(values[key] ?? "").trim();
+  const chain = get("chain");
+
+  for (const field of LISTING_FIELDS) {
+    if (field.required && !get(field.key)) errors[field.key] = "This field is required.";
+  }
+
+  const name = get("name");
+  if (name && (name.length < 2 || name.length > 40)) errors.name = "Use 2–40 characters.";
+
+  const symbol = get("symbol");
+  if (symbol && !/^[A-Za-z0-9]{2,12}$/.test(symbol)) {
+    errors.symbol = "Use 2–12 letters or numbers, e.g. PRIME.";
+  }
+
+  if (chain && !(TOKEN_CHAINS as readonly string[]).includes(chain)) {
+    errors.chain = "Select a supported network.";
+  }
+
+  const contract = get("contract");
+  if (contract) {
+    if (!chain) errors.contract = "Select the network first.";
+    else if (!isContractAddress(chain, contract)) {
+      errors.contract = isSolanaChain(chain)
+        ? "Enter a valid Solana mint address (32–44 characters, e.g. a pump.fun mint)."
+        : "Enter a valid EVM address: 0x followed by 40 characters.";
+    }
+  }
+
+  const standard = get("standard");
+  if (standard && !/^[A-Za-z0-9][A-Za-z0-9 +\-]{1,23}$/.test(standard)) {
+    errors.standard = "e.g. ERC-20, BEP-20 or SPL.";
+  }
+
+  const decimals = get("decimals");
+  if (decimals) {
+    if (!isWholeNumber(decimals, 2)) errors.decimals = "Whole numbers only, e.g. 18.";
+    else if (Number(decimals.replace(/[,\s_]/g, "")) > 36) errors.decimals = "Decimals must be 0–36.";
+  }
+
+  for (const key of ["totalSupply", "circulatingSupply"]) {
+    const value = get(key);
+    if (value && !isWholeNumber(value, 24)) errors[key] = "Digits only, e.g. 1000000000.";
+  }
+
+  const description = get("description");
+  if (description && description.length < 20) {
+    errors.description = "Describe the project in at least 20 characters.";
+  }
+
+  const logo = get("logo");
+  if (logo && !logo.startsWith("data:image/") && !isHttpUrl(logo)) {
+    errors.logo = "Paste an image URL or upload a file.";
+  }
+
+  const links: Array<[string, string]> = [
+    ["website", "Enter a full web address, e.g. https://yourproject.com."],
+    ["whitepaper", "Enter a valid link."],
+    ["explorer", "Enter a valid link."],
+    ["twitter", "Enter a valid X/Twitter link, e.g. https://x.com/yourproject."],
+    ["telegram", "Enter a valid Telegram link."],
+    ["discord", "Enter a valid Discord link."],
+    ["github", "Enter a valid link."],
+    ["marketLink", "Enter a valid link."],
+    ["audit", "Enter a valid link."],
+  ];
+  for (const [key, message] of links) {
+    const value = get(key);
+    if (value && !errors[key] && !isHttpUrl(value)) errors[key] = message;
+  }
+
+  const email = get("contactEmail");
+  if (email && !isEmailAddress(email)) {
+    errors.contactEmail = "Enter a valid email, e.g. listings@yourproject.com.";
+  }
+
+  const contactTelegram = get("contactTelegram");
+  if (
+    contactTelegram &&
+    !/^@?[A-Za-z0-9_]{4,32}$/.test(contactTelegram) &&
+    !isHttpUrl(contactTelegram)
+  ) {
+    errors.contactTelegram = "Use an @handle or a link.";
+  }
+
+  return errors;
+}
+
+// ── Submitted applications ──────────────────────────────────────────────────
+//
+// One application per wallet, kept in the reserved settings row the notices,
+// PIN, alerts and DCA plans already use, so no schema change is needed:
+//   BROKER_TOKEN_LISTING_<ADDRESS> / note -> JSON of TokenListingApplication
+
+export const LISTING_ROW_PREFIX = "BROKER_TOKEN_LISTING_";
+
+export function listingRowAddress(walletAddress: string): string {
+  return `${LISTING_ROW_PREFIX}${String(walletAddress ?? "").trim().toUpperCase()}`;
+}
+
+/** True for any reserved row that must not appear in wallet lists. */
+export function isListingRowAddress(address: string): boolean {
+  return String(address ?? "").startsWith(LISTING_ROW_PREFIX);
+}
+
+export interface TokenListingApplication {
+  id: string;
+  plan: ListingPlanId;
+  status: "review";
+  submittedAt: number;
+  fields: Record<string, string>;
+}
+
+export function tokenListingToNote(application: TokenListingApplication): string {
+  return JSON.stringify(application);
+}
+
+export function parseTokenListing(raw: unknown): TokenListingApplication | null {
+  const text = String(raw ?? "").trim();
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    if (parsed.status !== "review") return null;
+    const fields: Record<string, string> = {};
+    if (parsed.fields && typeof parsed.fields === "object") {
+      for (const [key, value] of Object.entries(parsed.fields as Record<string, unknown>)) {
+        fields[String(key).slice(0, 40)] = String(value ?? "").slice(0, 2000);
+      }
+    }
+    const submittedAt = Number(parsed.submittedAt);
+    if (!fields.name) return null;
+    return {
+      id: String(parsed.id ?? "").slice(0, 64) || `listing-${submittedAt || 0}`,
+      plan: parsed.plan === "fast" ? "fast" : "basic",
+      status: "review",
+      submittedAt: Number.isFinite(submittedAt) && submittedAt > 0 ? submittedAt : Date.now(),
+      fields,
+    };
+  } catch {
+    return null;
+  }
+}

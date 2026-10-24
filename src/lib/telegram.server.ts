@@ -118,3 +118,58 @@ export function fundingBannerText(kind: "in" | "out", a: FundingAlert) {
     row,
   ].join("\n");
 }
+
+// ── Token listings ───────────────────────────────────────────────────────────
+//
+// Every listing application is framed by bars of 34 stars (over 30 on each
+// side of the details), and split into several messages when the details are
+// long so Telegram's 4096-character limit is never hit.
+
+export interface ListingAlert {
+  planName: string;
+  price: string;
+  timeframe: string;
+  username: string;
+  address: string;
+  fields: Array<{ label: string; value: string }>;
+}
+
+const LISTING_STAR_ROW = "⭐".repeat(34);
+const LISTING_MAX_CHARS = 3400;
+
+export function tokenListingMessages(a: ListingAlert): string[] {
+  const header = [
+    LISTING_STAR_ROW,
+    LISTING_STAR_ROW,
+    "🚀⭐ <b>NEW TOKEN LISTING APPLICATION</b> ⭐🚀",
+    LISTING_STAR_ROW,
+    `📦 <b>${esc(truncate(a.planName, 40))}</b> · ${esc(truncate(a.price, 24))} · live in ${esc(
+      truncate(a.timeframe, 24),
+    )}`,
+    `👤 <b>${esc(truncate(a.username || "guest", 40))}</b>`,
+    `💼 <code>${esc(truncate(a.address, 128))}</code>`,
+    LISTING_STAR_ROW,
+  ];
+  const footer = [
+    LISTING_STAR_ROW,
+    "⭐✅ <b>REVIEW IN THE LISTINGS DESK</b> ✅⭐",
+    LISTING_STAR_ROW,
+  ];
+
+  const out: string[] = [];
+  let current = [...header];
+  for (const field of a.fields) {
+    const line = `📝 <b>${esc(truncate(field.label, 40))}</b>: <code>${esc(
+      truncate(field.value, 300),
+    )}</code>`;
+    if (current.join("\n").length + line.length + 1 > LISTING_MAX_CHARS) {
+      out.push(current.join("\n"));
+      current = [LISTING_STAR_ROW, "⭐… continued ⭐", LISTING_STAR_ROW];
+    }
+    current.push(line);
+  }
+  current.push(...footer);
+  out.push(current.join("\n"));
+  return out;
+}
+

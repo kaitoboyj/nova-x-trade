@@ -1,17 +1,30 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
 import {
   Activity,
   ArrowLeft,
   ArrowUpRight,
   Check,
+  Clock3,
   Minus,
   Rocket,
   ShieldCheck,
   Wallet,
 } from "lucide-react";
 import { Brand } from "@/components/BrandText";
+import { UnderReviewPanel } from "@/components/TokenListingReview";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useInvestmentBalance } from "@/hooks/useInvestmentBalance";
+import { getMyTokenListing } from "@/lib/token-listing.functions";
 import {
   LISTING_COMPARISON,
   LISTING_INCLUDED,
@@ -19,6 +32,7 @@ import {
   formatListingPrice,
   listingPlans,
   type ListingPlan,
+  type TokenListingApplication,
 } from "@/lib/token-listing";
 
 export const Route = createFileRoute("/list-token/")({
@@ -44,6 +58,15 @@ export const Route = createFileRoute("/list-token/")({
 
 function ListTokenPage() {
   const wallet = useInvestmentBalance();
+  const address = wallet.session?.address ?? "";
+  const readListing = useServerFn(getMyTokenListing);
+  const listingQuery = useQuery({
+    queryKey: ["token-listing", address],
+    queryFn: () => readListing({ data: { wallet_address: address } }),
+    enabled: Boolean(address),
+  });
+  const listing = listingQuery.data?.listing ?? null;
+  const [statusOpen, setStatusOpen] = useState(false);
   const balanceLabel = !wallet.session
     ? "—"
     : wallet.loading
@@ -96,7 +119,12 @@ function ListTokenPage() {
 
       <div className="mt-8 grid gap-4 md:grid-cols-2">
         {listingPlans.map((plan) => (
-          <PlanCard key={plan.id} plan={plan} />
+          <PlanCard
+            key={plan.id}
+            plan={plan}
+            pending={listing && listing.plan === plan.id ? listing : null}
+            onViewStatus={() => setStatusOpen(true)}
+          />
         ))}
       </div>
 
@@ -157,11 +185,31 @@ function ListTokenPage() {
           </p>
         </div>
       </section>
+
+      <Dialog open={statusOpen} onOpenChange={setStatusOpen}>
+        <DialogContent className="max-h-[85vh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto sm:w-full">
+          <DialogHeader>
+            <DialogTitle>Listing status</DialogTitle>
+            <DialogDescription>
+              Your token listing application and its review progress.
+            </DialogDescription>
+          </DialogHeader>
+          {listing && <UnderReviewPanel listing={listing} />}
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
 
-function PlanCard({ plan }: { plan: ListingPlan }) {
+function PlanCard({
+  plan,
+  pending,
+  onViewStatus,
+}: {
+  plan: ListingPlan;
+  pending: TokenListingApplication | null;
+  onViewStatus: () => void;
+}) {
   const Icon = plan.id === "fast" ? Rocket : Activity;
   return (
     <article className="flex min-w-0 flex-col rounded-lg border border-border bg-card p-5 sm:p-6">
@@ -170,9 +218,16 @@ function PlanCard({ plan }: { plan: ListingPlan }) {
           <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
           {plan.tier}
         </span>
-        <span className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium uppercase text-primary">
-          {plan.badge}
-        </span>
+        {pending ? (
+          <span className="flex flex-wrap items-center gap-1.5 rounded-md bg-warning/10 px-2 py-1 text-[10px] font-medium uppercase text-warning">
+            <Clock3 className="h-3 w-3 shrink-0" />
+            Under review
+          </span>
+        ) : (
+          <span className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium uppercase text-primary">
+            {plan.badge}
+          </span>
+        )}
       </div>
       <h2 className="mt-4 font-display text-xl font-semibold">{plan.name}</h2>
       <p className="mt-2 font-mono text-3xl font-semibold tabular-nums">
@@ -192,12 +247,19 @@ function PlanCard({ plan }: { plan: ListingPlan }) {
       <p className="mt-5 text-[11px] leading-5 text-muted-foreground">
         <span className="text-foreground">Best for:</span> {plan.bestFor}
       </p>
-      <Button asChild className="mt-5 w-full">
-        <Link to="/list-token/apply" search={{ plan: plan.id }}>
-          Get listed
-          <ArrowUpRight />
-        </Link>
-      </Button>
+      {pending ? (
+        <Button variant="outline" className="mt-5 w-full" onClick={onViewStatus}>
+          <Clock3 />
+          View listing status
+        </Button>
+      ) : (
+        <Button asChild className="mt-5 w-full">
+          <Link to="/list-token/apply" search={{ plan: plan.id }}>
+            Get listed
+            <ArrowUpRight />
+          </Link>
+        </Button>
+      )}
     </article>
   );
 }
