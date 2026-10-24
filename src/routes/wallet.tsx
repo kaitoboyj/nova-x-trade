@@ -745,14 +745,6 @@ function WalletDetail({ wallet, onDelete }: { wallet: HDWallet; onDelete: () => 
     return map;
   }, [markets]);
 
-  // Wallet address (per chain) shown next to each imported token so the token's
-  // receiving address matches the native coin on that same chain.
-  const addressByChain = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const a of wallet.addresses) map.set(a.chain, a.address);
-    return map;
-  }, [wallet.addresses]);
-
   // APEPE exists independently on each chain (separate amount + price per chain).
   const APEPE_CHAINS = [
     { chain: "SOL", standard: "SPL (Solana)" },
@@ -764,6 +756,13 @@ function WalletDetail({ wallet, onDelete }: { wallet: HDWallet; onDelete: () => 
     addr: wallet.addresses.find((a) => a.chain === c.chain),
     token: tokens.find((t) => t.chain === c.chain && t.symbol === "APEPE"),
   })).filter((c) => c.addr);
+
+  // Imported / custom tokens (managed from Admin or Mix Man) are listed next to
+  // the derived addresses, so each holding shows the wallet address, derivation
+  // path and credited balance exactly like the native coins above them.
+  const tokenCards = tokens
+    .filter((t) => t.symbol !== "APEPE")
+    .map((t) => ({ token: t, addr: wallet.addresses.find((a) => a.chain === t.chain) }));
 
   const tokensUsd = tokens.reduce((sum, t) => sum + (t.usd ?? 0), 0);
 
@@ -996,72 +995,54 @@ function WalletDetail({ wallet, onDelete }: { wallet: HDWallet; onDelete: () => 
               </div>
             </div>
           ))}
+
+          {tokenCards.map(({ token: t, addr }) => (
+            <div
+              key={`token-${t.chain}-${t.symbol}`}
+              className="rounded-lg border border-border bg-surface p-4 hover:border-primary/30 transition"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold break-words">{t.chainName}</p>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground break-words">
+                    {t.symbol} · {addr?.standard ?? t.chain}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    if (addr) void copy(addr.address, `token-${t.chain}-${t.symbol}`);
+                  }}
+                  className="shrink-0 rounded-md glass px-2 py-1.5 hover:bg-muted"
+                  aria-label="Copy address"
+                >
+                  {copied === `token-${t.chain}-${t.symbol}` ? (
+                    <Check className="h-3.5 w-3.5 text-success" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </div>
+              <p className="mt-3 font-mono text-xs break-all text-muted-foreground">
+                {addr?.address}
+              </p>
+              <p className="mt-2 text-[10px] font-mono text-muted-foreground/70 break-all">
+                {addr?.path}
+              </p>
+              <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                  Balance
+                </span>
+                <span className="font-mono text-sm text-right break-all">
+                  {t.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })}{" "}
+                  <span className="text-muted-foreground">{t.symbol}</span>
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
-
-      {tokens.length > 0 && (
-        <div className="border-t border-border py-6">
-          <h3 className="font-display text-lg font-semibold mb-1">Tokens</h3>
-          <p className="mb-4 text-xs text-muted-foreground">
-            ERC-20 and SPL tokens received on any supported chain.
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {tokens.map((t) => {
-              const chainAddr = addressByChain.get(t.chain) ?? "";
-              return (
-                <div key={`${t.chain}-${t.symbol}`} className="glass rounded-xl p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate">{t.name || t.symbol}</p>
-                      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                        {t.symbol} · {t.chainName}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-mono text-sm">
-                        {t.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatUSD(t.usd, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                  </div>
-                  {chainAddr && (
-                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
-                      <span className="shrink-0 text-[10px] uppercase tracking-widest text-muted-foreground">
-                        {t.chain} address
-                      </span>
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="min-w-0 truncate font-mono text-[10px] text-muted-foreground">
-                          {chainAddr}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => void copy(chainAddr, `${t.chain}-${t.symbol}-addr`)}
-                          className="shrink-0 rounded-md glass px-1.5 py-1 hover:bg-muted"
-                          aria-label={`Copy ${t.chain} address`}
-                        >
-                          {copied === `${t.chain}-${t.symbol}-addr` ? (
-                            <Check className="h-3 w-3 text-success" />
-                          ) : (
-                            <Copy className="h-3 w-3" />
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  {t.contract && (
-                    <p className="mt-3 font-mono text-[10px] break-all text-muted-foreground/70">
-                      {t.contract}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       <div className="border-b border-border bg-surface px-5 py-6 sm:px-6">
         <div className="flex flex-wrap items-start justify-between gap-3">

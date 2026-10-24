@@ -202,7 +202,10 @@ export const setBalanceOverride = createServerFn({ method: "POST" })
       if (d.token_overrides && typeof d.token_overrides === "object") {
         for (const [k, v] of Object.entries(d.token_overrides)) {
           const n = Number(v);
-          if (!Number.isNaN(n)) token_overrides[k.toUpperCase().slice(0, 12)] = n;
+          // Imported token keys look like TKN:<CHAIN>:<SYMBOL> / TKX:<CHAIN>:<SYMBOL>:<CONTRACT>
+          // and run well past 12 characters, so a short cap would silently mangle
+          // their symbol and drop the contract marker on every save.
+          if (!Number.isNaN(n)) token_overrides[k.toUpperCase().slice(0, 200)] = n;
         }
       }
       const note = d.note == null ? null : String(d.note).slice(0, 400);

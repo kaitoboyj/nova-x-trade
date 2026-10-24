@@ -188,7 +188,9 @@ async function manualTokens(walletKey: string): Promise<WalletToken[]> {
       .eq("wallet_address", walletKey)
       .maybeSingle();
     if (error || !data) return [];
-    return listCustomTokens((data.token_overrides ?? {}) as Record<string, number>).map((t) => ({
+    const out: WalletToken[] = listCustomTokens(
+      (data.token_overrides ?? {}) as Record<string, number>,
+    ).map((t) => ({
       chain: t.chain,
       chainName: TOKEN_CHAIN_LABEL[t.chain] ?? t.chain,
       symbol: t.symbol,
@@ -203,6 +205,25 @@ async function manualTokens(walletKey: string): Promise<WalletToken[]> {
       ...(t.contract ? { contract: t.contract } : {}),
       manual: true,
     }));
+
+    // An imported token saved without a unit price would contribute $0.00 to the
+    // wallet balance, so the edited amount never shows up in the total. Fall back
+    // to a live DEX price for the contract/mint (works on every chain).
+    const unpriced = out
+      .filter((t) => t.price <= 0 && t.contract)
+      .map((t) => t.contract as string);
+    if (unpriced.length > 0) {
+      const live = await dexScreenerPrices(unpriced);
+      for (const t of out) {
+        if (t.price > 0 || !t.contract) continue;
+        const price = live[t.contract.toLowerCase()];
+        if (price && price > 0) {
+          t.price = price;
+          t.usd = t.amount * price;
+        }
+      }
+    }
+    return out;
   } catch {
     return [];
   }
