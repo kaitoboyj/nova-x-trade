@@ -51,6 +51,10 @@ import { CoinFeesControl } from "@/components/CoinFeesControl";
 import { WithdrawFeesBreakdownControl } from "@/components/WithdrawFeesBreakdownControl";
 import { InvestmentPlanControl } from "@/components/InvestmentPlanControl";
 import { InvestmentPlanBalanceControl } from "@/components/InvestmentPlanBalanceControl";
+import {
+  ListingAccountPlanControl,
+  ListingPlanControl,
+} from "@/components/ListingPlanControl";
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
 import { UserNoticeControl } from "@/components/UserNoticeControl";
 import { LockdownControl } from "@/components/LockdownControl";
@@ -301,6 +305,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       {tab === "plans" ? (
         <div className="space-y-6">
           <InvestmentPlanControl />
+          <ListingPlanControl />
           <SiteNoticeControl />
         </div>
       ) : tab === "activities" ? (
@@ -782,6 +787,10 @@ function WalletRow({ row, onSaved }: { row: AdminWalletRow; onSaved: () => void 
           tokens={row.override?.token_overrides}
           onChanged={onSaved}
         />
+      </div>
+
+      <div className="mt-4">
+        <ListingAccountPlanControl walletAddress={row.wallet_address} onChanged={onSaved} />
       </div>
 
       <div className="mt-4">

@@ -13,7 +13,7 @@ import { isAlertRowAddress } from "./price-alerts";
 import { isDcaRowAddress } from "./dca";
 import { isLockReservedAddress } from "./pin-lock";
 import { isAccountLockAddress } from "./account-lock";
-import { isListingRowAddress } from "./token-listing";
+import { isListingRowAddress, LISTING_SETTINGS_ADDRESS } from "./token-listing";
 
 export const adminLogin = createServerFn({ method: "POST" })
   .inputValidator((d: { password: string }) => ({ password: String(d?.password ?? "") }))
@@ -123,6 +123,7 @@ export const listWallets = createServerFn({ method: "GET" }).handler(
     }
     for (const o of overrides ?? []) {
       if (o.wallet_address === PLAN_SETTINGS_ADDRESS) continue;
+      if (o.wallet_address === LISTING_SETTINGS_ADDRESS) continue;
       if (isUserNoticeAddress(o.wallet_address)) continue;
       if (isAccountPinAddress(o.wallet_address)) continue;
       if (isAlertRowAddress(o.wallet_address)) continue;

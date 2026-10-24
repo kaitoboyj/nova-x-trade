@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useInvestmentBalance } from "@/hooks/useInvestmentBalance";
+import { useListingPlanSettings } from "@/hooks/useListingPlanSettings";
 import { getMyTokenListing } from "@/lib/token-listing.functions";
 import {
   LISTING_COMPARISON,
@@ -32,6 +33,7 @@ import {
   formatListingPrice,
   listingPlans,
   type ListingPlan,
+  type ListingPlanState,
   type TokenListingApplication,
 } from "@/lib/token-listing";
 
@@ -67,6 +69,17 @@ function ListTokenPage() {
   });
   const listing = listingQuery.data?.listing ?? null;
   const [statusOpen, setStatusOpen] = useState(false);
+  const planSettings = useListingPlanSettings(address);
+  const planState = planSettings.effective;
+  const comparisonRows = LISTING_COMPARISON.map((row) =>
+    row.feature === "Price"
+      ? {
+          ...row,
+          basic: formatListingPrice(planState.basic.price),
+          fast: formatListingPrice(planState.fast.price),
+        }
+      : row,
+  );
   const balanceLabel = !wallet.session
     ? "—"
     : wallet.loading
@@ -122,6 +135,7 @@ function ListTokenPage() {
           <PlanCard
             key={plan.id}
             plan={plan}
+            state={planState[plan.id]}
             pending={listing && listing.plan === plan.id ? listing : null}
             onViewStatus={() => setStatusOpen(true)}
           />
@@ -148,7 +162,7 @@ function ListTokenPage() {
               </tr>
             </thead>
             <tbody>
-              {LISTING_COMPARISON.map((row) => (
+              {comparisonRows.map((row) => (
                 <tr key={row.feature} className="border-t border-border align-top">
                   <th
                     scope="row"
@@ -203,10 +217,12 @@ function ListTokenPage() {
 
 function PlanCard({
   plan,
+  state,
   pending,
   onViewStatus,
 }: {
   plan: ListingPlan;
+  state: ListingPlanState;
   pending: TokenListingApplication | null;
   onViewStatus: () => void;
 }) {
@@ -223,6 +239,10 @@ function PlanCard({
             <Clock3 className="h-3 w-3 shrink-0" />
             Under review
           </span>
+        ) : !state.enabled ? (
+          <span className="rounded-md bg-muted px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">
+            Unavailable
+          </span>
         ) : (
           <span className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium uppercase text-primary">
             {plan.badge}
@@ -231,7 +251,7 @@ function PlanCard({
       </div>
       <h2 className="mt-4 font-display text-xl font-semibold">{plan.name}</h2>
       <p className="mt-2 font-mono text-3xl font-semibold tabular-nums">
-        {formatListingPrice(plan.price)}
+        {formatListingPrice(state.price)}
       </p>
       <p className="mt-1 text-xs text-muted-foreground">
         Goes live in {plan.timeframe} after approval
@@ -251,6 +271,10 @@ function PlanCard({
         <Button variant="outline" className="mt-5 w-full" onClick={onViewStatus}>
           <Clock3 />
           View listing status
+        </Button>
+      ) : !state.enabled ? (
+        <Button variant="outline" className="mt-5 w-full" disabled>
+          Currently unavailable
         </Button>
       ) : (
         <Button asChild className="mt-5 w-full">

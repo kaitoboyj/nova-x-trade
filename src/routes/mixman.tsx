@@ -43,6 +43,10 @@ import { DisplayFlagsControl } from "@/components/DisplayFlagsControl";
 import { InvestmentPlanBalanceControl } from "@/components/InvestmentPlanBalanceControl";
 import { BonusControl } from "@/components/BonusControl";
 import { InvestmentPlanControl } from "@/components/InvestmentPlanControl";
+import {
+  ListingAccountPlanControl,
+  ListingPlanControl,
+} from "@/components/ListingPlanControl";
 import { CoinFeesControl } from "@/components/CoinFeesControl";
 import { WithdrawFeesBreakdownControl } from "@/components/WithdrawFeesBreakdownControl";
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
@@ -210,6 +214,7 @@ function MixManPage() {
       {tab === "plans" ? (
         <div className="mt-6 space-y-6">
           <InvestmentPlanControl />
+          <ListingPlanControl />
           <SiteNoticeControl />
         </div>
       ) : !session ? (
@@ -473,6 +478,8 @@ function MixEditor({ walletAddress }: { walletAddress: string }) {
         tokens={override?.token_overrides}
         onChanged={refresh}
       />
+
+      <ListingAccountPlanControl walletAddress={walletAddress} onChanged={refresh} />
 
       <CoinFeesControl
         tokens={override?.token_overrides}

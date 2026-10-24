@@ -396,6 +396,140 @@ export function tokenListingToNote(application: TokenListingApplication): string
   return JSON.stringify(application);
 }
 
+// ── Admin / Mix Man fees & availability ─────────────────────────────────────
+//
+// The listing fee and whether a plan can be applied for are stored as reserved
+// numeric keys inside the existing `token_overrides` map, so no schema change
+// is needed. The global values sit on a reserved settings row and a wallet's own
+// row overrides them:
+//
+//   Global   BROKER_TOKEN_LISTING_SETTINGS.token_overrides
+//   Account  <wallet row>.token_overrides
+//
+//   __LPPB   -> basic plan fee (USD)
+//   __LPPF   -> fast-track plan fee (USD)
+//   __LPOFFB -> 1 while the basic plan is switched off
+//   __LPOFFT -> 1 while the fast-track plan is switched off
+//
+// The keys stay within 12 characters because the admin balance form rewrites
+// token_overrides keys with a 12-character cap.
+
+export const LISTING_SETTINGS_ADDRESS = "BROKER_TOKEN_LISTING_SETTINGS";
+/** Upper bound on an admin-set listing fee, so a typo cannot quote nonsense. */
+export const LISTING_MAX_FEE = 10_000_000;
+export const LP_BASIC_PRICE_KEY = "__LPPB";
+export const LP_FAST_PRICE_KEY = "__LPPF";
+export const LP_BASIC_OFF_KEY = "__LPOFFB";
+export const LP_FAST_OFF_KEY = "__LPOFFT";
+
+export function isListingPlanKey(key: string): boolean {
+  return (
+    key === LP_BASIC_PRICE_KEY ||
+    key === LP_FAST_PRICE_KEY ||
+    key === LP_BASIC_OFF_KEY ||
+    key === LP_FAST_OFF_KEY
+  );
+}
+
+const listingPriceKey = (plan: ListingPlanId) =>
+  plan === "fast" ? LP_FAST_PRICE_KEY : LP_BASIC_PRICE_KEY;
+const listingOffKey = (plan: ListingPlanId) => (plan === "fast" ? LP_FAST_OFF_KEY : LP_BASIC_OFF_KEY);
+
+/** What one scope (global row or a wallet row) stores for a plan. */
+export interface ListingPlanScope {
+  /** Fee set at this scope, or null to inherit. */
+  price: number | null;
+  /** True while this scope switches the plan off. */
+  off: boolean;
+}
+
+/** The fee and availability the listings UI should use. */
+export interface ListingPlanState {
+  id: ListingPlanId;
+  name: string;
+  price: number;
+  /** False when the plan is switched off at either scope. */
+  enabled: boolean;
+}
+
+export type ListingPlanScopeMap = Record<ListingPlanId, ListingPlanScope>;
+export type ListingPlanStateMap = Record<ListingPlanId, ListingPlanState>;
+
+/** Read only the reserved listing keys out of one token_overrides map. */
+export function readListingPlanScope(
+  tokens?: Record<string, number> | null,
+): ListingPlanScopeMap {
+  const out = {} as ListingPlanScopeMap;
+  for (const plan of listingPlans) {
+    const price = Number(tokens?.[listingPriceKey(plan.id)]);
+    out[plan.id] = {
+      price: Number.isFinite(price) && price > 0 ? Math.round(price) : null,
+      off: Number(tokens?.[listingOffKey(plan.id)] ?? 0) === 1,
+    };
+  }
+  return out;
+}
+
+/**
+ * Merge the global settings row with a wallet's own overrides. The account fee
+ * wins; a plan switched off globally or on the account stays unavailable.
+ */
+export function resolveListingPlans(
+  globalTokens?: Record<string, number> | null,
+  accountTokens?: Record<string, number> | null,
+): ListingPlanStateMap {
+  const global = readListingPlanScope(globalTokens);
+  const account = readListingPlanScope(accountTokens);
+  const out = {} as ListingPlanStateMap;
+  for (const plan of listingPlans) {
+    out[plan.id] = {
+      id: plan.id,
+      name: plan.name,
+      price: account[plan.id].price ?? global[plan.id].price ?? plan.price,
+      enabled: !global[plan.id].off && !account[plan.id].off,
+    };
+  }
+  return out;
+}
+
+/** The catalog defaults, used before settings load or when they are unavailable. */
+export function defaultValueListingPlans(): ListingPlanStateMap {
+  const out = {} as ListingPlanStateMap;
+  for (const plan of listingPlans) {
+    out[plan.id] = { id: plan.id, name: plan.name, price: plan.price, enabled: true };
+  }
+  return out;
+}
+
+export interface ListingPlanPatch {
+  /** New fee, or null to fall back to the next scope. */
+  price?: number | null;
+  /** false switches the plan off here, true clears this scope's flag. */
+  enabled?: boolean;
+}
+
+/** Apply an Admin / Mix Man change to one token_overrides map. */
+export function writeListingPlan(
+  tokens: Record<string, number> | null | undefined,
+  plan: ListingPlanId,
+  patch: ListingPlanPatch,
+): Record<string, number> {
+  const next = { ...(tokens ?? {}) };
+  if (patch.price !== undefined) {
+    const price = Number(patch.price);
+    if (patch.price === null || !Number.isFinite(price) || price <= 0) {
+      delete next[listingPriceKey(plan)];
+    } else {
+      next[listingPriceKey(plan)] = Math.round(price);
+    }
+  }
+  if (patch.enabled !== undefined) {
+    if (patch.enabled) delete next[listingOffKey(plan)];
+    else next[listingOffKey(plan)] = 1;
+  }
+  return next;
+}
+
 export function parseTokenListing(raw: unknown): TokenListingApplication | null {
   const text = String(raw ?? "").trim();
   if (!text) return null;

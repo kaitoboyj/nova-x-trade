@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useInvestmentBalance } from "@/hooks/useInvestmentBalance";
+import { useListingPlanSettings } from "@/hooks/useListingPlanSettings";
 import { getMyTokenListing, submitTokenListing } from "@/lib/token-listing.functions";
 import { TOKEN_CHAINS, TOKEN_CHAIN_LABEL } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
@@ -74,6 +75,10 @@ function ApplyPage() {
   const plan = listingPlanById(planId);
   const wallet = useInvestmentBalance();
   const address = wallet.session?.address ?? "";
+  const planSettings = useListingPlanSettings(address);
+  /** The fee in force for this wallet, which Admin / Mix Man can override. */
+  const fee = planSettings.effective[plan.id].price;
+  const planEnabled = planSettings.effective[plan.id].enabled;
 
   const [step, setStep] = useState<Step>("form");
   const [values, setValues] = useState<Record<string, string>>({});
@@ -165,7 +170,7 @@ function ApplyPage() {
         schedule(() => settle(tries + 1), 500);
         return;
       }
-      setStep(current.error || current.balance < plan.price ? "insufficient" : "review");
+      setStep(current.error || current.balance < fee ? "insufficient" : "review");
     };
     schedule(() => settle(), CHECK_MS);
   };
@@ -220,7 +225,7 @@ function ApplyPage() {
         Back to listing plans
       </Link>
 
-      {step === "form" && !underReview && (
+      {step === "form" && !underReview && planEnabled && (
         <>
           <header className="mt-6">
             <p className="text-[10px] uppercase text-primary">
@@ -237,7 +242,7 @@ function ApplyPage() {
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3">
             <span className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-mono tabular-nums">{formatListingPrice(plan.price)}</span>
+              <span className="font-mono tabular-nums">{formatListingPrice(fee)}</span>
               <span className="text-muted-foreground">
                 · {plan.tier} · live in {plan.timeframe}
               </span>
@@ -330,12 +335,30 @@ function ApplyPage() {
         </>
       )}
 
+      {step === "form" && !planEnabled && (
+        <StatusPanel
+          tone="warning"
+          icon={<AlertTriangle className="h-8 w-8" />}
+          title="Listing package unavailable"
+          body={`The ${plan.name} is not open to applications right now. Choose the other package or try again later.`}
+        >
+          <div className="w-full max-w-sm">
+            <Button asChild variant="outline" className="w-full">
+              <Link to="/list-token">
+                <ArrowLeft />
+                Back to listing plans
+              </Link>
+            </Button>
+          </div>
+        </StatusPanel>
+      )}
+
       {step === "checking" && (
         <StatusPanel
           tone="primary"
           icon={<Loader2 className="h-8 w-8 animate-spin motion-reduce:animate-none" />}
           title="Processing your listing"
-          body={`Checking your available wallet balance against the ${plan.name} fee of ${formatListingPrice(plan.price)}. This only takes a moment.`}
+          body={`Checking your available wallet balance against the ${plan.name} fee of ${formatListingPrice(fee)}. This only takes a moment.`}
         />
       )}
 
@@ -347,7 +370,7 @@ function ApplyPage() {
           body={
             wallet.error
               ? `Your wallet balance could not be verified, so the ${plan.name} could not be processed. Fund your wallet and start the listing again.`
-              : `Your available balance is ${balanceLabel}, and the ${plan.name} costs ${formatListingPrice(plan.price)}. Fund your wallet with at least ${formatListingPrice(Math.max(0, plan.price - wallet.balance))} more, then start the listing again.`
+              : `Your available balance is ${balanceLabel}, and the ${plan.name} costs ${formatListingPrice(fee)}. Fund your wallet with at least ${formatListingPrice(Math.max(0, fee - wallet.balance))} more, then start the listing again.`
           }
         >
           <div className="w-full max-w-sm">
@@ -377,7 +400,7 @@ function ApplyPage() {
               </h1>
               <span className="flex flex-wrap items-center gap-2 rounded-md bg-primary/10 px-3 py-1.5 text-[11px] text-primary">
                 <Clock3 className="h-3.5 w-3.5 shrink-0" />
-                {plan.name} · {formatListingPrice(plan.price)} · live in {plan.timeframe}
+                {plan.name} · {formatListingPrice(fee)} · live in {plan.timeframe}
               </span>
             </div>
             <p className="mt-3 flex items-start gap-2 rounded-md bg-warning/10 px-3 py-2 text-left text-[11px] leading-5 text-warning">
@@ -402,7 +425,7 @@ function ApplyPage() {
             Edit token details
           </Button>
           <p className="mt-3 text-center text-[10px] leading-5 text-muted-foreground">
-            Available balance {balanceLabel}. The {formatListingPrice(plan.price)} fee is verified
+            Available balance {balanceLabel}. The {formatListingPrice(fee)} fee is verified
             again against your wallet before the application is queued.
           </p>
         </>
