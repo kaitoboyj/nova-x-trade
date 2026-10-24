@@ -29,6 +29,8 @@ import { Route as ApiNewsRouteImport } from './routes/api/news'
 import { Route as ApiTokenMetaRouteImport } from './routes/api/token-meta'
 import { Route as ApiTokensRouteImport } from './routes/api/tokens'
 import { Route as CoinCoinIdRouteImport } from './routes/coin.$coinId'
+import { Route as ListTokenIndexRouteImport } from './routes/list-token/index'
+import { Route as ListTokenApplyRouteImport } from './routes/list-token/apply'
 import { Route as ApiPublicAlertRouteImport } from './routes/api/public/alert'
 import { Route as ApiPublicNotifyRouteImport } from './routes/api/public/notify'
 import { Route as ApiPublicThirdwebConfigRouteImport } from './routes/api/public/thirdweb-config'
@@ -135,6 +137,16 @@ const CoinCoinIdRoute = CoinCoinIdRouteImport.update({
   path: '/coin/$coinId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ListTokenIndexRoute = ListTokenIndexRouteImport.update({
+  id: '/list-token/',
+  path: '/list-token/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ListTokenApplyRoute = ListTokenApplyRouteImport.update({
+  id: '/list-token/apply',
+  path: '/list-token/apply',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicAlertRoute = ApiPublicAlertRouteImport.update({
   id: '/api/public/alert',
   path: '/api/public/alert',
@@ -183,6 +195,8 @@ export interface FileRoutesByFullPath {
   '/api/token-meta': typeof ApiTokenMetaRoute
   '/api/tokens': typeof ApiTokensRoute
   '/coin/$coinId': typeof CoinCoinIdRoute
+  '/list-token/apply': typeof ListTokenApplyRoute
+  '/list-token/': typeof ListTokenIndexRoute
   '/api/public/alert': typeof ApiPublicAlertRoute
   '/api/public/notify': typeof ApiPublicNotifyRoute
   '/api/public/thirdweb-config': typeof ApiPublicThirdwebConfigRoute
@@ -210,6 +224,8 @@ export interface FileRoutesByTo {
   '/api/token-meta': typeof ApiTokenMetaRoute
   '/api/tokens': typeof ApiTokensRoute
   '/coin/$coinId': typeof CoinCoinIdRoute
+  '/list-token/apply': typeof ListTokenApplyRoute
+  '/list-token': typeof ListTokenIndexRoute
   '/api/public/alert': typeof ApiPublicAlertRoute
   '/api/public/notify': typeof ApiPublicNotifyRoute
   '/api/public/thirdweb-config': typeof ApiPublicThirdwebConfigRoute
@@ -238,6 +254,8 @@ export interface FileRoutesById {
   '/api/token-meta': typeof ApiTokenMetaRoute
   '/api/tokens': typeof ApiTokensRoute
   '/coin/$coinId': typeof CoinCoinIdRoute
+  '/list-token/apply': typeof ListTokenApplyRoute
+  '/list-token/': typeof ListTokenIndexRoute
   '/api/public/alert': typeof ApiPublicAlertRoute
   '/api/public/notify': typeof ApiPublicNotifyRoute
   '/api/public/thirdweb-config': typeof ApiPublicThirdwebConfigRoute
@@ -267,6 +285,8 @@ export interface FileRouteTypes {
     | '/api/token-meta'
     | '/api/tokens'
     | '/coin/$coinId'
+    | '/list-token/apply'
+    | '/list-token/'
     | '/api/public/alert'
     | '/api/public/notify'
     | '/api/public/thirdweb-config'
@@ -294,6 +314,8 @@ export interface FileRouteTypes {
     | '/api/token-meta'
     | '/api/tokens'
     | '/coin/$coinId'
+    | '/list-token/apply'
+    | '/list-token'
     | '/api/public/alert'
     | '/api/public/notify'
     | '/api/public/thirdweb-config'
@@ -321,6 +343,8 @@ export interface FileRouteTypes {
     | '/api/token-meta'
     | '/api/tokens'
     | '/coin/$coinId'
+    | '/list-token/apply'
+    | '/list-token/'
     | '/api/public/alert'
     | '/api/public/notify'
     | '/api/public/thirdweb-config'
@@ -349,6 +373,8 @@ export interface RootRouteChildren {
   ApiTokenMetaRoute: typeof ApiTokenMetaRoute
   ApiTokensRoute: typeof ApiTokensRoute
   CoinCoinIdRoute: typeof CoinCoinIdRoute
+  ListTokenApplyRoute: typeof ListTokenApplyRoute
+  ListTokenIndexRoute: typeof ListTokenIndexRoute
   ApiPublicAlertRoute: typeof ApiPublicAlertRoute
   ApiPublicNotifyRoute: typeof ApiPublicNotifyRoute
   ApiPublicThirdwebConfigRoute: typeof ApiPublicThirdwebConfigRoute
@@ -498,6 +524,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CoinCoinIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/list-token/': {
+      id: '/list-token/'
+      path: '/list-token'
+      fullPath: '/list-token/'
+      preLoaderRoute: typeof ListTokenIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/list-token/apply': {
+      id: '/list-token/apply'
+      path: '/list-token/apply'
+      fullPath: '/list-token/apply'
+      preLoaderRoute: typeof ListTokenApplyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/alert': {
       id: '/api/public/alert'
       path: '/api/public/alert'
@@ -557,6 +597,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTokenMetaRoute: ApiTokenMetaRoute,
   ApiTokensRoute: ApiTokensRoute,
   CoinCoinIdRoute: CoinCoinIdRoute,
+  ListTokenApplyRoute: ListTokenApplyRoute,
+  ListTokenIndexRoute: ListTokenIndexRoute,
   ApiPublicAlertRoute: ApiPublicAlertRoute,
   ApiPublicNotifyRoute: ApiPublicNotifyRoute,
   ApiPublicThirdwebConfigRoute: ApiPublicThirdwebConfigRoute,

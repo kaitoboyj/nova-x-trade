@@ -10,6 +10,7 @@ import {
   Layers3,
   ChevronRight,
   Loader2,
+  Rocket,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -98,13 +99,21 @@ function SwapPage() {
           </h1>
           <p className="mt-2 text-xs text-muted-foreground">Across chains. On your terms.</p>
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link to="/wallet">
-            <Wallet />
-            Your wallet
-            <ArrowUpRight />
-          </Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link to="/list-token">
+              <Rocket />
+              List your token
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/wallet">
+              <Wallet />
+              Your wallet
+              <ArrowUpRight />
+            </Link>
+          </Button>
+        </div>
       </header>
       <div className="mb-8 flex flex-wrap items-center justify-between gap-3 border-y border-border bg-surface px-4 py-3">
         <span className="flex items-center gap-2 text-xs">
@@ -233,6 +242,25 @@ function SwapPage() {
           <DcaPanel address={session.address} />
         </div>
       ) : null}
+      <section className="mt-8 flex flex-wrap items-center justify-between gap-5 rounded-lg border border-border bg-card px-5 py-5 sm:px-6">
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-[10px] uppercase text-primary">
+            <Rocket className="h-3.5 w-3.5 shrink-0" />
+            Token listings
+          </p>
+          <h2 className="mt-2 font-display text-lg font-semibold">List your token on the exchange</h2>
+          <p className="mt-2 max-w-2xl text-xs leading-6 text-muted-foreground">
+            Standard placement from $1,500 with a 3–5 day listing window, or a priority listing that
+            includes token verification and goes live within 24 hours for $2,500.
+          </p>
+        </div>
+        <Button asChild className="w-full sm:w-auto">
+          <Link to="/list-token">
+            Get listed
+            <ArrowUpRight />
+          </Link>
+        </Button>
+      </section>
     </div>
   );
 }
