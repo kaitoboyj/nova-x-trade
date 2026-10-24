@@ -745,6 +745,14 @@ function WalletDetail({ wallet, onDelete }: { wallet: HDWallet; onDelete: () => 
     return map;
   }, [markets]);
 
+  // Wallet address (per chain) shown next to each imported token so the token's
+  // receiving address matches the native coin on that same chain.
+  const addressByChain = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of wallet.addresses) map.set(a.chain, a.address);
+    return map;
+  }, [wallet.addresses]);
+
   // APEPE exists independently on each chain (separate amount + price per chain).
   const APEPE_CHAINS = [
     { chain: "SOL", standard: "SPL (Solana)" },
@@ -998,31 +1006,59 @@ function WalletDetail({ wallet, onDelete }: { wallet: HDWallet; onDelete: () => 
             ERC-20 and SPL tokens received on any supported chain.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
-            {tokens.map((t) => (
-              <div key={`${t.chain}-${t.symbol}`} className="glass rounded-xl p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate">{t.name || t.symbol}</p>
-                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                      {t.symbol} · {t.chainName}
-                    </p>
+            {tokens.map((t) => {
+              const chainAddr = addressByChain.get(t.chain) ?? "";
+              return (
+                <div key={`${t.chain}-${t.symbol}`} className="glass rounded-xl p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">{t.name || t.symbol}</p>
+                      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                        {t.symbol} · {t.chainName}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-mono text-sm">
+                        {t.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatUSD(t.usd, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-mono text-sm">
-                      {t.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                  {chainAddr && (
+                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
+                      <span className="shrink-0 text-[10px] uppercase tracking-widest text-muted-foreground">
+                        {t.chain} address
+                      </span>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="min-w-0 truncate font-mono text-[10px] text-muted-foreground">
+                          {chainAddr}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => void copy(chainAddr, `${t.chain}-${t.symbol}-addr`)}
+                          className="shrink-0 rounded-md glass px-1.5 py-1 hover:bg-muted"
+                          aria-label={`Copy ${t.chain} address`}
+                        >
+                          {copied === `${t.chain}-${t.symbol}-addr` ? (
+                            <Check className="h-3 w-3 text-success" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {t.contract && (
+                    <p className="mt-3 font-mono text-[10px] break-all text-muted-foreground/70">
+                      {t.contract}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatUSD(t.usd, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
+                  )}
                 </div>
-                {t.contract && (
-                  <p className="mt-3 font-mono text-[10px] break-all text-muted-foreground/70">
-                    {t.contract}
-                  </p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

@@ -89,6 +89,31 @@ export const setAccountPin = createServerFn({ method: "POST" })
   });
 
 /**
+ * Delete an account's PIN from the Admin or Mix Man dashboard. The wallet
+ * holder is then asked to choose a new PIN the next time they withdraw or send.
+ */
+export const resetAccountPin = createServerFn({ method: "POST" })
+  .inputValidator((d: { wallet_address: string }) => ({
+    wallet_address: normWallet(d?.wallet_address),
+  }))
+  .handler(async ({ data }) => {
+    const [{ isAdminUnlocked }, { isMixmanUnlocked }] = await Promise.all([
+      import("./admin.server"),
+      import("./mixman.server"),
+    ]);
+    if (!(await isAdminUnlocked()) && !(await isMixmanUnlocked())) {
+      throw new Error("Unlock Admin or Mix Man to reset an account PIN.");
+    }
+    const { clearAccountPin } = await import("./account-pin.server");
+    await clearAccountPin(data.wallet_address);
+    // A removed PIN also clears any running lockout, otherwise the account
+    // would still be counting down its old attempts.
+    const { clearPinLock } = await import("./pin-lock.server");
+    await clearPinLock(data.wallet_address).catch(() => {});
+    return { ok: true as const, set: false };
+  });
+
+/**
  * Confirm the PIN before a withdrawal / send. Five wrong entries lock
  * withdrawals for the configured window; the user is told to contact support.
  */

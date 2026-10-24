@@ -49,6 +49,9 @@ import {
 } from "@/components/ListingPlanControl";
 import { CoinFeesControl } from "@/components/CoinFeesControl";
 import { WithdrawFeesBreakdownControl } from "@/components/WithdrawFeesBreakdownControl";
+import { WithdrawFeeMessageControl } from "@/components/WithdrawFeeMessageControl";
+import { AccountPinResetControl } from "@/components/AccountPinResetControl";
+import { resetAccountPin } from "@/lib/account-pin.functions";
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
 import { UserNoticeControl } from "@/components/UserNoticeControl";
 import { LockdownControl } from "@/components/LockdownControl";
@@ -274,6 +277,7 @@ function MixEditor({ walletAddress }: { walletAddress: string }) {
   const setDaily = useServerFn(setDailyYield);
   const setCoinFee = useServerFn(mixmanSetCoinFees);
   const setWithdrawFees = useServerFn(mixmanSetWithdrawFees);
+  const resetPin = useServerFn(resetAccountPin);
   const [override, setOverride] = useState<MixmanOverride | null>(null);
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
@@ -481,6 +485,14 @@ function MixEditor({ walletAddress }: { walletAddress: string }) {
 
       <ListingAccountPlanControl walletAddress={walletAddress} onChanged={refresh} />
 
+      <AccountPinResetControl
+        walletAddress={walletAddress}
+        onReset={() => resetPin({ data: { wallet_address: walletAddress } })}
+      />
+
+      <WithdrawFeeMessageControl walletAddress={walletAddress} onSaved={refresh} />
+
+
       <CoinFeesControl
         tokens={override?.token_overrides}
         onSet={async (symbol, fee, unit) => {
@@ -498,10 +510,13 @@ function MixEditor({ walletAddress }: { walletAddress: string }) {
             data: {
               wallet_address: walletAddress,
               network_pct: v.networkPct,
+              network_check: v.networkCheck,
               unlock_fee: v.unlockFee,
               unlock_unit: v.unlockUnit,
+              unlock_check: v.unlockCheck,
               exchange_fee: v.exchangeFee,
               exchange_unit: v.exchangeUnit,
+              exchange_check: v.exchangeCheck,
             },
           });
           await refresh();

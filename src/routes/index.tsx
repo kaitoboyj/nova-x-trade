@@ -134,6 +134,17 @@ function HomeWalletBalances() {
     return { address, amount, symbol, usd, loading: balance === "loading" || balance === undefined };
   });
   const tokensUsd = tokens.reduce((sum, t) => sum + (t.usd ?? 0), 0);
+  // Imported ERC-20 / SPL tokens get their own card, using the wallet's address
+  // on that chain, so the credited value is visible next to the native coins.
+  const tokenRows = tokens.map((t) => ({
+    key: `${t.chain}:${t.contract ?? t.symbol}`,
+    chain: t.chain,
+    name: t.name || t.symbol,
+    symbol: t.symbol,
+    amount: t.amount,
+    address: addresses.find((a) => a.chain === t.chain)?.address ?? "",
+    usd: t.usd,
+  }));
   const realTotal = rows.reduce((sum, row) => sum + (row.usd ?? 0), 0) + tokensUsd;
   const initialBalance = display?.live_balance_frozen && display.frozen_live_balance != null
     ? display.frozen_live_balance
@@ -197,6 +208,26 @@ function HomeWalletBalances() {
                 <span className="shrink-0"><CopyButton value={row.address.address} label="" /></span>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">{row.usd == null ? "$—" : formatUSD(row.usd, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            </div>
+          ))}
+          {tokenRows.map((row) => (
+            <div key={row.key} className="glass min-w-0 overflow-hidden rounded-xl p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{row.name}</p>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                    {row.symbol} · {row.chain}
+                  </p>
+                </div>
+                <p className="shrink-0 font-mono text-sm text-right">{row.amount.toFixed(6)}</p>
+              </div>
+              {row.address && (
+                <div className="mt-3 flex min-w-0 items-center gap-2">
+                  <p className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">{row.address}</p>
+                  <span className="shrink-0"><CopyButton value={row.address} label="" /></span>
+                </div>
+              )}
+              <p className="mt-2 text-xs text-muted-foreground">{formatUSD(row.usd, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
           ))}
         </div>

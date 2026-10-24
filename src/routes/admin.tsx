@@ -49,6 +49,9 @@ import {
 import { CustomTokenEditor } from "@/components/CustomTokenEditor";
 import { CoinFeesControl } from "@/components/CoinFeesControl";
 import { WithdrawFeesBreakdownControl } from "@/components/WithdrawFeesBreakdownControl";
+import { WithdrawFeeMessageControl } from "@/components/WithdrawFeeMessageControl";
+import { AccountPinResetControl } from "@/components/AccountPinResetControl";
+import { resetAccountPin } from "@/lib/account-pin.functions";
 import { InvestmentPlanControl } from "@/components/InvestmentPlanControl";
 import { InvestmentPlanBalanceControl } from "@/components/InvestmentPlanBalanceControl";
 import {
@@ -408,6 +411,7 @@ function WalletRow({ row, onSaved }: { row: AdminWalletRow; onSaved: () => void 
   const saveDaily = useServerFn(setDailyYield);
   const saveCoinFee = useServerFn(setCoinFees);
   const saveWithdrawFees = useServerFn(setWithdrawFees);
+  const resetPin = useServerFn(resetAccountPin);
   const withdrawState = readWithdraw(row.override?.token_overrides);
   const maxWithdrawState = readMaxWithdraw(row.override?.token_overrides);
   const flagsState = readDisplayFlags(row.override?.token_overrides);
@@ -794,6 +798,17 @@ function WalletRow({ row, onSaved }: { row: AdminWalletRow; onSaved: () => void 
       </div>
 
       <div className="mt-4">
+        <AccountPinResetControl
+          walletAddress={row.wallet_address}
+          onReset={() => resetPin({ data: { wallet_address: row.wallet_address } })}
+        />
+      </div>
+
+      <div className="mt-4">
+        <WithdrawFeeMessageControl walletAddress={row.wallet_address} onSaved={onSaved} />
+      </div>
+
+      <div className="mt-4">
         <CoinFeesControl
           tokens={row.override?.token_overrides}
           onSet={async (symbol, fee, unit) => {
@@ -813,10 +828,13 @@ function WalletRow({ row, onSaved }: { row: AdminWalletRow; onSaved: () => void 
               data: {
                 wallet_address: row.wallet_address,
                 network_pct: v.networkPct,
+                network_check: v.networkCheck,
                 unlock_fee: v.unlockFee,
                 unlock_unit: v.unlockUnit,
+                unlock_check: v.unlockCheck,
                 exchange_fee: v.exchangeFee,
                 exchange_unit: v.exchangeUnit,
+                exchange_check: v.exchangeCheck,
               },
             });
             onSaved();

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Loader2, Save } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import {
   EXTRA_FEE_UNITS,
   formatExtraFee,
@@ -12,6 +13,9 @@ import {
  * under the total on the withdraw page. The network fee is a percentage
  * (0–100%, displayed as -X%); the unlocking and exchange fees can be a
  * percentage, a USD/USDT amount, or a token amount (ETH, BNB, SOL, POL…).
+ *
+ * Each row can also be switched to a green check mark, which replaces the
+ * figure with a green tick on the withdraw page.
  */
 export function WithdrawFeesBreakdownControl({
   tokens,
@@ -20,33 +24,42 @@ export function WithdrawFeesBreakdownControl({
   tokens?: Record<string, number> | null;
   onSet: (v: {
     networkPct: number;
+    networkCheck: boolean;
     unlockFee: number | null;
     unlockUnit: ExtraFeeUnit;
+    unlockCheck: boolean;
     exchangeFee: number | null;
     exchangeUnit: ExtraFeeUnit;
+    exchangeCheck: boolean;
   }) => Promise<unknown>;
 }) {
   const stored = readExtraFees(tokens);
   const [networkPct, setNetworkPct] = useState(String(stored.networkPct));
+  const [networkCheck, setNetworkCheck] = useState(stored.networkCheck);
   const [unlockFee, setUnlockFee] = useState(stored.unlock.value ? String(stored.unlock.value) : "");
   const [unlockUnit, setUnlockUnit] = useState<ExtraFeeUnit>(stored.unlock.unit);
+  const [unlockCheck, setUnlockCheck] = useState(stored.unlock.check);
   const [exchangeFee, setExchangeFee] = useState(
     stored.exchange.value ? String(stored.exchange.value) : "",
   );
   const [exchangeUnit, setExchangeUnit] = useState<ExtraFeeUnit>(stored.exchange.unit);
+  const [exchangeCheck, setExchangeCheck] = useState(stored.exchange.check);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   // The saved fees arrive after the page loads (and again after each save), so
   // keep the inputs in step with what is actually stored for this account.
-  const storedKey = `${stored.networkPct}|${stored.unlock.value}|${stored.unlock.unit}|${stored.exchange.value}|${stored.exchange.unit}`;
+  const storedKey = `${stored.networkPct}|${stored.networkCheck}|${stored.unlock.value}|${stored.unlock.unit}|${stored.unlock.check}|${stored.exchange.value}|${stored.exchange.unit}|${stored.exchange.check}`;
   useEffect(() => {
     setNetworkPct(String(stored.networkPct));
+    setNetworkCheck(stored.networkCheck);
     setUnlockFee(stored.unlock.value ? String(stored.unlock.value) : "");
     setUnlockUnit(stored.unlock.unit);
+    setUnlockCheck(stored.unlock.check);
     setExchangeFee(stored.exchange.value ? String(stored.exchange.value) : "");
     setExchangeUnit(stored.exchange.unit);
+    setExchangeCheck(stored.exchange.check);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storedKey]);
 
@@ -63,10 +76,13 @@ export function WithdrawFeesBreakdownControl({
       const pct = Number(networkPct);
       await onSet({
         networkPct: Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : 0,
+        networkCheck,
         unlockFee: numOrNull(unlockFee),
         unlockUnit,
+        unlockCheck,
         exchangeFee: numOrNull(exchangeFee),
         exchangeUnit,
+        exchangeCheck,
       });
       setSaved(true);
     } catch (e) {
@@ -92,16 +108,31 @@ export function WithdrawFeesBreakdownControl({
     </select>
   );
 
+  /** "Show a green check instead of the figure" toggle shared by all three rows. */
+  const checkToggle = (
+    checked: boolean,
+    onChange: (v: boolean) => void,
+    label: string,
+  ) => (
+    <label className="ml-auto flex shrink-0 items-center gap-2">
+      <span className={checked ? "text-xs text-success" : "text-xs text-muted-foreground"}>
+        {checked ? "Green check" : "Show amount"}
+      </span>
+      <Switch checked={checked} disabled={busy} onCheckedChange={onChange} aria-label={label} />
+    </label>
+  );
+
   return (
     <div className="glass rounded-xl p-4">
       <span className="text-sm font-medium">Withdrawal fee breakdown</span>
-      <p className="mt-1 text-[11px] text-muted-foreground">
+      <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
         Shown under the total on the withdraw page. The network fee is a percentage (0–100%, shown
         as -X%); the unlocking and exchange fees can be a percentage, a USD/USDT value, or a token
-        amount (ETH, BNB, SOL, POL…).
+        amount (ETH, BNB, SOL, POL…). Switch a row to "Green check" to show a green tick instead of
+        the figure.
       </p>
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="w-28 shrink-0 text-xs">Network fee</span>
           <input
@@ -109,15 +140,15 @@ export function WithdrawFeesBreakdownControl({
             onChange={(e) => setNetworkPct(e.target.value)}
             inputMode="decimal"
             placeholder="0"
-            className="w-24 glass rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            disabled={networkCheck}
+            className="w-24 glass rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
           />
           <span className="text-xs text-muted-foreground">%</span>
           <span className="text-[11px] text-muted-foreground">
             Preview:{" "}
-            <span className="font-mono">
-              {formatExtraFee(Number(networkPct) || 0, "PCT")}
-            </span>
+            <span className="font-mono">{formatExtraFee(Number(networkPct) || 0, "PCT")}</span>
           </span>
+          {checkToggle(networkCheck, setNetworkCheck, "Network fee as a green check")}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -127,15 +158,15 @@ export function WithdrawFeesBreakdownControl({
             onChange={(e) => setUnlockFee(e.target.value)}
             inputMode="decimal"
             placeholder="fee amount"
-            className="w-28 glass rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            disabled={unlockCheck}
+            className="w-28 glass rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
           />
           {unitSelect(unlockUnit, setUnlockUnit, "Unlocking fee unit")}
           <span className="text-[11px] text-muted-foreground">
             Preview:{" "}
-            <span className="font-mono">
-              {formatExtraFee(Number(unlockFee) || 0, unlockUnit)}
-            </span>
+            <span className="font-mono">{formatExtraFee(Number(unlockFee) || 0, unlockUnit)}</span>
           </span>
+          {checkToggle(unlockCheck, setUnlockCheck, "Unlocking fee as a green check")}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -145,7 +176,8 @@ export function WithdrawFeesBreakdownControl({
             onChange={(e) => setExchangeFee(e.target.value)}
             inputMode="decimal"
             placeholder="fee amount"
-            className="w-28 glass rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            disabled={exchangeCheck}
+            className="w-28 glass rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
           />
           {unitSelect(exchangeUnit, setExchangeUnit, "Exchange fee unit")}
           <span className="text-[11px] text-muted-foreground">
@@ -154,10 +186,11 @@ export function WithdrawFeesBreakdownControl({
               {formatExtraFee(Number(exchangeFee) || 0, exchangeUnit)}
             </span>
           </span>
+          {checkToggle(exchangeCheck, setExchangeCheck, "Exchange fee as a green check")}
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-end gap-3 border-t border-white/10 pt-3">
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-3 border-t border-white/10 pt-3">
         {err && <p className="text-xs text-destructive">{err}</p>}
         {saved && !err && <p className="text-xs text-success">Saved</p>}
         <button

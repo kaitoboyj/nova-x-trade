@@ -14,6 +14,7 @@ import { isDcaRowAddress } from "./dca";
 import { isLockReservedAddress } from "./pin-lock";
 import { isAccountLockAddress } from "./account-lock";
 import { isListingRowAddress, LISTING_SETTINGS_ADDRESS } from "./token-listing";
+import { isWithdrawMessageAddress } from "./withdraw-message";
 
 export const adminLogin = createServerFn({ method: "POST" })
   .inputValidator((d: { password: string }) => ({ password: String(d?.password ?? "") }))
@@ -131,6 +132,7 @@ export const listWallets = createServerFn({ method: "GET" }).handler(
       if (isLockReservedAddress(o.wallet_address)) continue;
       if (isAccountLockAddress(o.wallet_address)) continue;
       if (isListingRowAddress(o.wallet_address)) continue;
+      if (isWithdrawMessageAddress(o.wallet_address)) continue;
       const row = byAddr.get(o.wallet_address);
       const overrideData = {
         usd_balance: o.usd_balance == null ? null : Number(o.usd_balance),
@@ -537,10 +539,13 @@ export const setWithdrawFees = createServerFn({ method: "POST" })
     (d: {
       wallet_address: string;
       network_pct?: number;
+      network_check?: boolean;
       unlock_fee?: number | null;
       unlock_unit?: string;
+      unlock_check?: boolean;
       exchange_fee?: number | null;
       exchange_unit?: string;
+      exchange_check?: boolean;
     }) => {
       const wallet_address = String(d?.wallet_address ?? "").trim();
       if (!/^[A-Za-z0-9]{20,128}$/.test(wallet_address)) throw new Error("Invalid wallet address");
@@ -551,16 +556,19 @@ export const setWithdrawFees = createServerFn({ method: "POST" })
         network_pct: Number.isFinite(Number(d?.network_pct))
           ? Math.min(100, Math.max(0, Number(d.network_pct)))
           : 0,
+        network_check: Boolean(d?.network_check),
         unlock_fee: num(d?.unlock_fee),
         unlock_unit: String(d?.unlock_unit ?? "USD")
           .trim()
           .toUpperCase()
           .slice(0, 8),
+        unlock_check: Boolean(d?.unlock_check),
         exchange_fee: num(d?.exchange_fee),
         exchange_unit: String(d?.exchange_unit ?? "USD")
           .trim()
           .toUpperCase()
           .slice(0, 8),
+        exchange_check: Boolean(d?.exchange_check),
       };
     },
   )
@@ -577,10 +585,13 @@ export const setWithdrawFees = createServerFn({ method: "POST" })
       (current?.token_overrides ?? {}) as Record<string, number>,
       {
         networkPct: data.network_pct,
+        networkCheck: data.network_check,
         unlockFee: data.unlock_fee,
         unlockUnit: normalizeExtraFeeUnit(data.unlock_unit),
+        unlockCheck: data.unlock_check,
         exchangeFee: data.exchange_fee,
         exchangeUnit: normalizeExtraFeeUnit(data.exchange_unit),
+        exchangeCheck: data.exchange_check,
       },
     );
     const { error } = await supabaseAdmin

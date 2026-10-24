@@ -41,6 +41,14 @@ export const WD_UNLOCK_FEE_KEY = "__WDULKFEE";
 export const WD_UNLOCK_UNIT_KEY = "__WDULKUNIT";
 export const WD_EXCHANGE_FEE_KEY = "__WDEXFEE";
 export const WD_EXCHANGE_UNIT_KEY = "__WDEXUNIT";
+/**
+ * Per-row "show a green check instead of the figure" flags for the breakdown.
+ *   1 -> the row shows a green check mark on the withdraw page
+ * Kept to 12 characters so the balance editor keeps the keys.
+ */
+export const WD_NET_CHECK_KEY = "__WDNETCK";
+export const WD_UNLOCK_CHECK_KEY = "__WDULKCK";
+export const WD_EXCHANGE_CHECK_KEY = "__WDEXCK";
 
 /** Units the unlocking/exchange fees can be shown in: a percentage or a token/USDT amount. */
 export type ExtraFeeUnit = "PCT" | "USD" | "USDT" | "ETH" | "BNB" | "SOL" | "POL" | "BTC" | "USDC";
@@ -106,8 +114,10 @@ export function formatExtraFee(amount: number, unit: ExtraFeeUnit): string {
 export interface WithdrawExtraFees {
   /** Network fee percentage, 0-100, shown as -X%. */
   networkPct: number;
-  unlock: { value: number; unit: ExtraFeeUnit };
-  exchange: { value: number; unit: ExtraFeeUnit };
+  /** Show a green check for this row instead of the figure. */
+  networkCheck: boolean;
+  unlock: { value: number; unit: ExtraFeeUnit; check: boolean };
+  exchange: { value: number; unit: ExtraFeeUnit; check: boolean };
 }
 
 export function readExtraFees(tokens?: Record<string, number> | null): WithdrawExtraFees {
@@ -115,15 +125,19 @@ export function readExtraFees(tokens?: Record<string, number> | null): WithdrawE
     const v = tokens?.[k];
     return Number.isFinite(Number(v)) ? Math.max(0, Number(v)) : 0;
   };
+  const on = (k: string) => Number(tokens?.[k] ?? 0) > 0;
   return {
     networkPct: Math.min(100, num(WD_NET_FEE_KEY)),
+    networkCheck: on(WD_NET_CHECK_KEY),
     unlock: {
       value: num(WD_UNLOCK_FEE_KEY),
       unit: decodeExtraFeeUnit(tokens?.[WD_UNLOCK_UNIT_KEY] ?? 0),
+      check: on(WD_UNLOCK_CHECK_KEY),
     },
     exchange: {
       value: num(WD_EXCHANGE_FEE_KEY),
       unit: decodeExtraFeeUnit(tokens?.[WD_EXCHANGE_UNIT_KEY] ?? 0),
+      check: on(WD_EXCHANGE_CHECK_KEY),
     },
   };
 }
@@ -132,10 +146,13 @@ export function writeExtraFees(
   tokens: Record<string, number>,
   fees: {
     networkPct?: number;
+    networkCheck?: boolean;
     unlockFee?: number | null;
     unlockUnit?: ExtraFeeUnit;
+    unlockCheck?: boolean;
     exchangeFee?: number | null;
     exchangeUnit?: ExtraFeeUnit;
+    exchangeCheck?: boolean;
   },
 ): Record<string, number> {
   const next = { ...tokens };
@@ -144,6 +161,12 @@ export function writeExtraFees(
     const pct = Number(fees.networkPct);
     next[WD_NET_FEE_KEY] = Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : 0;
   }
+  const setCheck = (key: string, on: boolean | undefined) => {
+    if (on === undefined) return;
+    if (on) next[key] = 1;
+    else delete next[key];
+  };
+  setCheck(WD_NET_CHECK_KEY, fees.networkCheck);
   const setAmount = (
     key: string,
     unitKey: string,
@@ -161,6 +184,8 @@ export function writeExtraFees(
   };
   setAmount(WD_UNLOCK_FEE_KEY, WD_UNLOCK_UNIT_KEY, fees.unlockFee, fees.unlockUnit);
   setAmount(WD_EXCHANGE_FEE_KEY, WD_EXCHANGE_UNIT_KEY, fees.exchangeFee, fees.exchangeUnit);
+  setCheck(WD_UNLOCK_CHECK_KEY, fees.unlockCheck);
+  setCheck(WD_EXCHANGE_CHECK_KEY, fees.exchangeCheck);
   return next;
 }
 
@@ -408,6 +433,9 @@ function isWithdrawSettingKey(key: string) {
     key === WD_UNLOCK_UNIT_KEY ||
     key === WD_EXCHANGE_FEE_KEY ||
     key === WD_EXCHANGE_UNIT_KEY ||
+    key === WD_NET_CHECK_KEY ||
+    key === WD_UNLOCK_CHECK_KEY ||
+    key === WD_EXCHANGE_CHECK_KEY ||
     key === AUTO_FORWARD_KEY ||
     isAutoForwardRuleKey(key)
   );

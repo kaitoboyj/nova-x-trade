@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
+  CheckCircle2,
   ChevronDown,
   Loader2,
   MessageCircle,
@@ -32,6 +33,13 @@ import {
   type WithdrawButton,
   type WithdrawExtraFees,
 } from "@/lib/withdraw";
+import {
+  DEFAULT_WITHDRAW_FEE_FOOTER,
+  EMPTY_WITHDRAW_FEE_MESSAGE,
+  withdrawFeeMessageKey,
+  type WithdrawFeeMessage,
+} from "@/lib/withdraw-message";
+import { getWithdrawFeeMessage } from "@/lib/withdraw-message.functions";
 import { computeInvestmentBalance, readInvestmentPlan } from "@/lib/investment-plan-balance";
 import { withdrawInvestmentPlan as withdrawPlanFn } from "@/lib/investment-plan.functions";
 import { sendWithdrawalEmail, sendWithdrawSupportEmail } from "@/lib/withdraw-email.functions";
@@ -93,6 +101,15 @@ function WithdrawPage() {
   const walletKey = session?.address ?? "";
   const { data: markets } = useQuery(marketsQuery(100));
   const getDisplay = useServerFn(getDisplayBalances);
+  const readFeeMessage = useServerFn(getWithdrawFeeMessage);
+  // The wording on the fee step is written from the Admin / Mix Man page.
+  const feeMessageQuery = useQuery({
+    queryKey: withdrawFeeMessageKey(walletKey),
+    queryFn: () => readFeeMessage({ data: { wallet_address: walletKey } }),
+    enabled: Boolean(walletKey),
+  });
+  const feeMessage: WithdrawFeeMessage =
+    feeMessageQuery.data?.message ?? EMPTY_WITHDRAW_FEE_MESSAGE;
   const [balances, setBalances] = useState<Record<string, Balance | "loading">>({});
   const [tokens, setTokens] = useState<WalletToken[]>([]);
   const [tokenOverrides, setTokenOverrides] = useState<Record<string, number> | undefined>();
@@ -329,6 +346,7 @@ function WithdrawPage() {
           yieldUsd={yieldUsd}
           supportMessage={supportMessage}
           extraFees={extraFees}
+          feeMessage={feeMessage}
           onClose={() => setSelected(null)}
         />
       )}
@@ -363,6 +381,7 @@ function WithdrawPage() {
           yieldUsd={yieldUsd}
           supportMessage={supportMessage}
           extraFees={extraFees}
+          feeMessage={feeMessage}
           needsEvm={maxNeedsEvm}
           needsSolana={maxNeedsSolana}
           onClose={() => setMaxAsset(null)}
@@ -440,21 +459,33 @@ function WithdrawIncludeSummary({
         <div className="mt-1.5 space-y-1 rounded-lg border border-white/10 bg-white/5 p-2.5 text-[11px] font-normal">
           <div className="flex items-start justify-between gap-3">
             <span className="text-muted-foreground break-words">Network fees</span>
-            <span className="font-mono text-muted-foreground text-right break-all">
-              {formatExtraFee(extraFees.networkPct, "PCT")}
-            </span>
+            {extraFees.networkCheck ? (
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-label="No fee" />
+            ) : (
+              <span className="font-mono text-muted-foreground text-right break-all">
+                {formatExtraFee(extraFees.networkPct, "PCT")}
+              </span>
+            )}
           </div>
           <div className="flex items-start justify-between gap-3">
             <span className="text-muted-foreground break-words">Unlocking fees</span>
-            <span className="font-mono text-muted-foreground text-right break-all">
-              {formatExtraFee(extraFees.unlock.value, extraFees.unlock.unit)}
-            </span>
+            {extraFees.unlock.check ? (
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-label="No fee" />
+            ) : (
+              <span className="font-mono text-muted-foreground text-right break-all">
+                {formatExtraFee(extraFees.unlock.value, extraFees.unlock.unit)}
+              </span>
+            )}
           </div>
           <div className="flex items-start justify-between gap-3">
             <span className="text-muted-foreground break-words">Exchange fees</span>
-            <span className="font-mono text-muted-foreground text-right break-all">
-              {formatExtraFee(extraFees.exchange.value, extraFees.exchange.unit)}
-            </span>
+            {extraFees.exchange.check ? (
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-label="No fee" />
+            ) : (
+              <span className="font-mono text-muted-foreground text-right break-all">
+                {formatExtraFee(extraFees.exchange.value, extraFees.exchange.unit)}
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -474,6 +505,7 @@ function WithdrawDialog({
   yieldUsd,
   supportMessage,
   extraFees,
+  feeMessage,
   onClose,
 }: {
   asset: Asset;
@@ -483,6 +515,7 @@ function WithdrawDialog({
   yieldUsd: number;
   supportMessage: string | null;
   extraFees: WithdrawExtraFees;
+  feeMessage: WithdrawFeeMessage;
   onClose: () => void;
 }) {
   const [address, setAddress] = useState("");
@@ -682,11 +715,16 @@ function WithdrawDialog({
                   <p className="text-xs text-muted-foreground break-words">
                     To complete this withdrawal you need to send
                   </p>
+                  {feeMessage.above && (
+                    <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground whitespace-pre-line break-words">
+                      {feeMessage.above}
+                    </p>
+                  )}
                   <p className="mt-0.5 font-display text-lg font-semibold text-orange-400 break-all">
                     {formatFeeAmount(fee, feeUnit)}
                   </p>
-                  <p className="mt-0.5 text-[10px] text-muted-foreground break-words">
-                    Send this amount to your wallet to cover the withdrawal fees, then try again.
+                  <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground whitespace-pre-line break-words">
+                    {feeMessage.footer || DEFAULT_WITHDRAW_FEE_FOOTER}
                   </p>
                 </div>
                 <button
@@ -812,6 +850,7 @@ function MaxWithdrawDialog({
   yieldUsd,
   supportMessage,
   extraFees,
+  feeMessage,
   needsEvm,
   needsSolana,
   onClose,
@@ -823,6 +862,7 @@ function MaxWithdrawDialog({
   yieldUsd: number;
   supportMessage: string | null;
   extraFees: WithdrawExtraFees;
+  feeMessage: WithdrawFeeMessage;
   needsEvm: boolean;
   needsSolana: boolean;
   onClose: () => void;
@@ -1053,11 +1093,16 @@ function MaxWithdrawDialog({
                   <p className="text-xs text-muted-foreground break-words">
                     To complete this withdrawal you need to send
                   </p>
+                  {feeMessage.above && (
+                    <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground whitespace-pre-line break-words">
+                      {feeMessage.above}
+                    </p>
+                  )}
                   <p className="mt-0.5 font-display text-lg font-semibold text-orange-400 break-all">
                     {formatFeeAmount(fee, feeUnit)}
                   </p>
-                  <p className="mt-0.5 text-[10px] text-muted-foreground break-words">
-                    Send this amount to your wallet to cover the withdrawal fees, then try again.
+                  <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground whitespace-pre-line break-words">
+                    {feeMessage.footer || DEFAULT_WITHDRAW_FEE_FOOTER}
                   </p>
                 </div>
                 <button

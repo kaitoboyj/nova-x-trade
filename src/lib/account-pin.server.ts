@@ -49,6 +49,19 @@ export async function writeAccountPin(walletAddress: string, pin: string): Promi
   if (error) throw new Error("The PIN could not be saved. Please try again.");
 }
 
+/**
+ * Delete the stored PIN. Admin / Mix Man use this to force the account back to
+ * the "choose a new PIN" screen: the reserved row goes away, so the next
+ * withdrawal or send asks the wallet holder to set a brand new PIN.
+ */
+export async function clearAccountPin(walletAddress: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("wallet_balance_overrides")
+    .delete()
+    .eq("wallet_address", accountPinAddress(walletAddress));
+  if (error) throw new Error("The PIN could not be reset. Please try again.");
+}
+
 /** Compare a submitted PIN against the stored hash. */
 export async function verifyAccountPinRow(
   walletAddress: string,
