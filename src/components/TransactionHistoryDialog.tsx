@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { History, Loader2 } from "lucide-react";
@@ -10,9 +10,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useWalletSession } from "@/hooks/useWalletSession";
 import { formatUSD } from "@/lib/prices";
 import {
   TRANSACTION_SIDE_LABEL,
+  type ChainAddress,
   type TransactionSide,
 } from "@/lib/transaction-history";
 import { getTransactionHistory } from "@/lib/transaction-history.functions";
@@ -29,7 +31,7 @@ function formatAmount(n: number): string {
   return n.toLocaleString("en-US", { maximumFractionDigits: 6 });
 }
 
-/** Opens the wallet's generated transaction history. */
+/** Opens the wallet's transaction history: generated entries plus real transfers. */
 export function TransactionHistoryDialog({
   address,
   children,
@@ -37,10 +39,26 @@ export function TransactionHistoryDialog({
   address?: string;
   children: ReactNode;
 }) {
+  const session = useWalletSession();
   const read = useServerFn(getTransactionHistory);
+
+  // Only the signed-in account can supply its derived addresses.
+  const addresses: ChainAddress[] = useMemo(() => {
+    if (!address || session?.address !== address) return [];
+    return (session?.wallet?.addresses ?? []).map((entry) => ({
+      chain: entry.chain,
+      address: entry.address,
+    }));
+  }, [address, session]);
+
+  const addrKey = addresses.map((entry) => `${entry.chain}:${entry.address}`).join("|");
+
   const history = useQuery({
-    queryKey: ["transaction-history", address ?? ""],
-    queryFn: () => read({ data: { wallet_address: address as string } }),
+    queryKey: ["transaction-history", address ?? "", addrKey],
+    queryFn: () =>
+      read({
+        data: { wallet_address: address as string, addresses: addresses.length ? addresses : undefined },
+      }),
     enabled: !!address,
   });
   const records = history.data?.records ?? [];
@@ -81,20 +99,25 @@ export function TransactionHistoryDialog({
                     <span className="block truncate text-xs font-medium">
                       {TRANSACTION_SIDE_LABEL[record.side]} {record.symbol}
                     </span>
-                    <span className="mt-0.5 block text-[10px] uppercase text-muted-foreground">
-                      {record.chain}
+                    <span className="mt-0.5 flex items-center gap-1.5 text-[10px] uppercase text-muted-foreground">
+                      <span>{record.chain}</span>
+                      {record.origin === "chain" && (
+                        <span className="rounded bg-primary/10 px-1.5 py-0.5 normal-case text-primary">
+                          on-chain
+                        </span>
+                      )}
                     </span>
                   </span>
                   <span className="shrink-0 text-right tabular-nums">
-                    <span
-                      className={`block text-xs font-medium ${SIDE_TONE[record.side]}`}
-                    >
+                    <span className={`block text-xs font-medium ${SIDE_TONE[record.side]}`}>
                       {record.side === "sold" || record.side === "sent" ? "-" : "+"}
                       {formatAmount(record.amount)} {record.symbol}
                     </span>
-                    <span className="mt-0.5 block text-[10px] text-muted-foreground">
-                      {formatUSD(record.usd)}
-                    </span>
+                    {record.usd > 0 && (
+                      <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                        {formatUSD(record.usd)}
+                      </span>
+                    )}
                   </span>
                 </li>
               ))}

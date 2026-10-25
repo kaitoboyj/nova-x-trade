@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { History, Loader2, Plus, RefreshCw, Trash2, Wand2 } from "lucide-react";
+import { History, Loader2, Plus, RefreshCw, RotateCcw, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { marketsQuery, formatUSD } from "@/lib/prices";
@@ -9,6 +9,7 @@ import { TOKEN_CHAINS, TOKEN_CHAIN_LABEL } from "@/lib/tokens";
 import {
   TRANSACTION_SIDE_LABEL,
   TRANSACTION_SIDES,
+  type ChainAddress,
   type TransactionRecord,
   type TransactionSide,
 } from "@/lib/transaction-history";
@@ -18,6 +19,7 @@ import {
   deleteTransactionHistoryEntry,
   generateTransactionHistoryEntries,
   getTransactionHistory,
+  restoreTransactionHistoryEntry,
 } from "@/lib/transaction-history.functions";
 
 const SIDE_TONE: Record<TransactionSide, string> = {
@@ -27,15 +29,22 @@ const SIDE_TONE: Record<TransactionSide, string> = {
   sent: "text-destructive",
 };
 
+interface HistoryView {
+  records: TransactionRecord[];
+  removed: TransactionRecord[];
+  addresses: ChainAddress[];
+}
+
 function formatAmount(n: number): string {
   if (!Number.isFinite(n)) return "0";
   return n.toLocaleString("en-US", { maximumFractionDigits: 6 });
 }
 
 /**
- * Transaction-history generator (Admin / Mix Man). Pick or import an asset,
- * say how many purchases and/or sales to write, and generate. Entries carry no
- * date, no time and no link. Existing entries can be deleted individually.
+ * Transaction-history control (Admin / Mix Man). Pick or import an asset, say
+ * how many purchases and/or sales to write, and generate. Real transfers the
+ * account has made are listed alongside them and can be removed or put back.
+ * Entries carry no date, no time and no link.
  */
 export function TransactionHistoryControl({ walletAddress }: { walletAddress: string }) {
   const client = useQueryClient();
@@ -43,11 +52,12 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
   const generate = useServerFn(generateTransactionHistoryEntries);
   const addEntry = useServerFn(addTransactionHistoryEntry);
   const removeEntry = useServerFn(deleteTransactionHistoryEntry);
+  const restoreEntry = useServerFn(restoreTransactionHistoryEntry);
   const clearAll = useServerFn(clearTransactionHistoryEntries);
   const { data: markets } = useQuery(marketsQuery(100));
 
   const history = useQuery({
-    queryKey: ["transaction-history", walletAddress],
+    queryKey: ["transaction-history", walletAddress, ""],
     queryFn: () => read({ data: { wallet_address: walletAddress } }),
     enabled: !!walletAddress,
   });
@@ -64,6 +74,8 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
   const [failed, setFailed] = useState(false);
 
   const records = history.data?.records ?? [];
+  const removed = history.data?.removed ?? [];
+  const addresses = history.data?.addresses ?? [];
   const pricedSymbols = useMemo(
     () =>
       (markets ?? []).map((coin) => ({
@@ -81,15 +93,17 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
     if (match && match.price > 0) setUnitPrice(String(match.price));
   }
 
-  function applyResult(result: { records: TransactionRecord[] }, message: string) {
-    client.setQueryData(["transaction-history", walletAddress], {
+  function applyResult(result: HistoryView, message: string) {
+    client.setQueryData(["transaction-history", walletAddress, ""], {
       available: true as const,
       records: result.records,
+      removed: result.removed,
+      addresses: result.addresses,
     });
     setFeedback(message);
   }
 
-  async function run(action: () => Promise<{ records: TransactionRecord[] }>, message: string) {
+  async function run(action: () => Promise<HistoryView>, message: string) {
     setBusy(true);
     setFeedback("");
     setFailed(false);
@@ -112,8 +126,9 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
             Transaction history
           </h2>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Generate, hand-add or delete the purchase and sale entries this account sees. No dates,
-            times or links are recorded.
+            Generate, hand-add or delete the purchase and sale entries this account sees. Transfers
+            the account really made are listed too and can be removed or restored. No dates, times
+            or links are recorded.
           </p>
         </div>
         <Button
@@ -275,7 +290,9 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
           <Button
             variant="outline"
             disabled={busy || records.length === 0}
-            onClick={() => void run(() => clearAll({ data: { wallet_address: walletAddress } }), "History cleared")}
+            onClick={() =>
+              void run(() => clearAll({ data: { wallet_address: walletAddress } }), "History cleared")
+            }
           >
             <Trash2 />
             Clear all
@@ -318,15 +335,20 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
                 key={record.id}
                 className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[7rem_1fr_auto_auto]"
               >
-                <span
-                  className={`hidden text-xs font-medium sm:block ${SIDE_TONE[record.side]}`}
-                >
+                <span className={`hidden text-xs font-medium sm:block ${SIDE_TONE[record.side]}`}>
                   {TRANSACTION_SIDE_LABEL[record.side]}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-xs font-medium">
-                    {record.symbol}
-                    <span className="ml-2 text-[10px] text-muted-foreground">{record.chain}</span>
+                  <span className="flex items-center gap-2 text-xs font-medium">
+                    <span className="truncate">{record.symbol}</span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                      {record.chain}
+                    </span>
+                    {record.origin === "chain" && (
+                      <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+                        on-chain
+                      </span>
+                    )}
                   </span>
                   <span className={`text-[10px] sm:hidden ${SIDE_TONE[record.side]}`}>
                     {TRANSACTION_SIDE_LABEL[record.side]}
@@ -336,9 +358,11 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
                   <span className="block">
                     {formatAmount(record.amount)} {record.symbol}
                   </span>
-                  <span className="block text-[10px] text-muted-foreground">
-                    {formatUSD(record.usd)}
-                  </span>
+                  {record.usd > 0 && (
+                    <span className="block text-[10px] text-muted-foreground">
+                      {formatUSD(record.usd)}
+                    </span>
+                  )}
                 </span>
                 <Button
                   variant="ghost"
@@ -347,9 +371,10 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
                   aria-label={`Delete ${record.symbol} entry`}
                   onClick={() =>
                     void run(
-                      () =>
-                        removeEntry({ data: { wallet_address: walletAddress, id: record.id } }),
-                      "Entry deleted",
+                      () => removeEntry({ data: { wallet_address: walletAddress, id: record.id } }),
+                      record.origin === "chain"
+                        ? "Real transaction removed"
+                        : "Entry deleted",
                     )
                   }
                 >
@@ -359,6 +384,52 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
             ))}
           </ul>
         </div>
+      )}
+
+      {removed.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold text-muted-foreground">
+            Removed real transactions
+          </h3>
+          <p className="text-[11px] text-muted-foreground">
+            Restore one to put it back into the account's history.
+          </p>
+          <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+            {removed.map((record) => (
+              <li key={record.id} className="flex items-center gap-3 px-4 py-3">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-medium">
+                    {TRANSACTION_SIDE_LABEL[record.side]} {record.symbol}
+                    <span className="ml-2 text-[10px] text-muted-foreground">{record.chain}</span>
+                  </span>
+                </span>
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                  {formatAmount(record.amount)} {record.symbol}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(
+                      () => restoreEntry({ data: { wallet_address: walletAddress, id: record.id } }),
+                      "Real transaction restored",
+                    )
+                  }
+                >
+                  <RotateCcw />
+                  Restore
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {addresses.length === 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          This account's real transfers appear once it has opened its history on the site.
+        </p>
       )}
     </div>
   );

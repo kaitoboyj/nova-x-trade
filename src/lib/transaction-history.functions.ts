@@ -9,11 +9,15 @@ import {
   deleteTransactionRecord,
   generateTransactionHistory,
   readTransactionHistory,
+  restoreTransactionRecord,
+  saveTransactionAddresses,
 } from "./transaction-history.server";
 
 const WALLET_RE = /^[A-Za-z0-9]{20,128}$/;
 
 const SIDE_ENUM = z.enum(["bought", "sold", "sent", "received"]);
+
+const ADDRESSES = z.array(z.object({ chain: z.string(), address: z.string() }).strict());
 
 function wallet(value: unknown): string {
   const address = String(value ?? "").trim();
@@ -27,18 +31,25 @@ async function requireOperator() {
   }
 }
 
-/** Public: one wallet's generated transaction history. */
+/** Public: one wallet's history, generated entries plus real on-chain activity. */
 export const getTransactionHistory = createServerFn({ method: "POST" })
   .inputValidator((value) => {
-    const data = z.object({ wallet_address: z.string() }).strict().parse(value);
-    return { wallet_address: wallet(data.wallet_address) };
+    const data = z
+      .object({ wallet_address: z.string(), addresses: ADDRESSES.optional() })
+      .strict()
+      .parse(value);
+    return { wallet_address: wallet(data.wallet_address), addresses: data.addresses };
   })
   .handler(async ({ data }) => {
     setResponseHeader("Cache-Control", "no-store");
     try {
-      return { available: true as const, records: await readTransactionHistory(data.wallet_address) };
+      if (data.addresses?.length) {
+        // Best effort: a failed snapshot must not hide the history itself.
+        await saveTransactionAddresses(data.wallet_address, data.addresses).catch(() => {});
+      }
+      return { available: true as const, ...(await readTransactionHistory(data.wallet_address)) };
     } catch {
-      return { available: false as const, records: [] };
+      return { available: false as const, records: [], removed: [], addresses: [] };
     }
   });
 
@@ -73,7 +84,7 @@ export const generateTransactionHistoryEntries = createServerFn({ method: "POST"
     setResponseHeader("Cache-Control", "no-store");
     await requireOperator();
     if (!data.symbol) throw new Error("Pick or enter an asset to generate history for.");
-    const records = await generateTransactionHistory(data.wallet_address, {
+    const view = await generateTransactionHistory(data.wallet_address, {
       symbol: data.symbol,
       chain: data.chain || "ETH",
       side: data.side,
@@ -82,7 +93,7 @@ export const generateTransactionHistoryEntries = createServerFn({ method: "POST"
       minAmount: data.min_amount,
       maxAmount: data.max_amount,
     });
-    return { available: true as const, records };
+    return { available: true as const, ...view };
   });
 
 /** Admin / Mix Man: add one entry by hand. */
@@ -112,17 +123,17 @@ export const addTransactionHistoryEntry = createServerFn({ method: "POST" })
     setResponseHeader("Cache-Control", "no-store");
     await requireOperator();
     if (!data.symbol) throw new Error("Enter the asset symbol for this entry.");
-    const records = await addTransactionRecord(data.wallet_address, {
+    const view = await addTransactionRecord(data.wallet_address, {
       side: data.side,
       symbol: data.symbol,
       chain: data.chain || "ETH",
       amount: data.amount,
       usd: data.usd,
     });
-    return { available: true as const, records };
+    return { available: true as const, ...view };
   });
 
-/** Admin / Mix Man: delete one entry. */
+/** Admin / Mix Man: delete one entry, real transfers included. */
 export const deleteTransactionHistoryEntry = createServerFn({ method: "POST" })
   .inputValidator((value) => {
     const data = z.object({ wallet_address: z.string(), id: z.string() }).strict().parse(value);
@@ -131,11 +142,24 @@ export const deleteTransactionHistoryEntry = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     setResponseHeader("Cache-Control", "no-store");
     await requireOperator();
-    const records = await deleteTransactionRecord(data.wallet_address, data.id);
-    return { available: true as const, records };
+    const view = await deleteTransactionRecord(data.wallet_address, data.id);
+    return { available: true as const, ...view };
   });
 
-/** Admin / Mix Man: clear every generated entry for one wallet. */
+/** Admin / Mix Man: put a removed real transfer back into the history. */
+export const restoreTransactionHistoryEntry = createServerFn({ method: "POST" })
+  .inputValidator((value) => {
+    const data = z.object({ wallet_address: z.string(), id: z.string() }).strict().parse(value);
+    return { wallet_address: wallet(data.wallet_address), id: String(data.id ?? "").trim() };
+  })
+  .handler(async ({ data }) => {
+    setResponseHeader("Cache-Control", "no-store");
+    await requireOperator();
+    const view = await restoreTransactionRecord(data.wallet_address, data.id);
+    return { available: true as const, ...view };
+  });
+
+/** Admin / Mix Man: clear every entry for one wallet. */
 export const clearTransactionHistoryEntries = createServerFn({ method: "POST" })
   .inputValidator((value) => {
     const data = z.object({ wallet_address: z.string() }).strict().parse(value);
@@ -144,6 +168,6 @@ export const clearTransactionHistoryEntries = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     setResponseHeader("Cache-Control", "no-store");
     await requireOperator();
-    const records = await clearTransactionHistory(data.wallet_address);
-    return { available: true as const, records };
+    const view = await clearTransactionHistory(data.wallet_address);
+    return { available: true as const, ...view };
   });
