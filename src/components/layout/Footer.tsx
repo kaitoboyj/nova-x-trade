@@ -36,7 +36,7 @@ export function Footer() {
       </div>
       <div className="border-t border-white/5">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-muted-foreground">
-          <p>© {new Date().getFullYear()} <span translate="no" className="notranslate">PrimeCapital</span> Labs. Trading crypto carries risk.</p>
+          <p>© 2023 <span translate="no" className="notranslate">PrimeCapital</span> Labs. Trading crypto carries risk.</p>
           <div className="flex items-center gap-4">
             <SubscriptionPlanLink />
             <Link to="/how-it-works" className="hover:text-foreground">How it works</Link>
