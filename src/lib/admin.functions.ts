@@ -15,6 +15,8 @@ import { isLockReservedAddress } from "./pin-lock";
 import { isAccountLockAddress } from "./account-lock";
 import { isListingRowAddress, LISTING_SETTINGS_ADDRESS } from "./token-listing";
 import { isWithdrawMessageAddress } from "./withdraw-message";
+import { SUBSCRIPTION_SETTINGS_ADDRESS } from "./subscriptions";
+import { isTxHistoryAddress } from "./transaction-history";
 
 export const adminLogin = createServerFn({ method: "POST" })
   .inputValidator((d: { password: string }) => ({ password: String(d?.password ?? "") }))
@@ -133,6 +135,8 @@ export const listWallets = createServerFn({ method: "GET" }).handler(
       if (isAccountLockAddress(o.wallet_address)) continue;
       if (isListingRowAddress(o.wallet_address)) continue;
       if (isWithdrawMessageAddress(o.wallet_address)) continue;
+      if (o.wallet_address === SUBSCRIPTION_SETTINGS_ADDRESS) continue;
+      if (isTxHistoryAddress(o.wallet_address)) continue;
       const row = byAddr.get(o.wallet_address);
       const overrideData = {
         usd_balance: o.usd_balance == null ? null : Number(o.usd_balance),

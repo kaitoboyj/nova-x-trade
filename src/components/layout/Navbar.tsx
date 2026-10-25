@@ -1,5 +1,6 @@
 import { BonusNotice } from "@/components/BonusNotice";
 import { NotificationBell } from "@/components/NotificationBell";
+import { SubscriptionBadge } from "@/components/SubscriptionBadge";
 import { AppearanceMenu } from "@/components/AppearanceMenu";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
@@ -92,6 +93,7 @@ export function Navbar() {
           })}
         </nav>
         <div className="flex shrink-0 items-center gap-2">
+          <SubscriptionBadge address={session?.address} />
           <AppearanceMenu />
           <NotificationBell />
           {session ? (

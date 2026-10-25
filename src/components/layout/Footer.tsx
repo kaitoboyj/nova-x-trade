@@ -1,6 +1,7 @@
 import { brandLogo } from "@/lib/brand";
 import { Link } from "@tanstack/react-router";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { SubscriptionBar } from "@/components/SubscriptionBar";
 
 export function Footer() {
   return (
@@ -36,6 +37,7 @@ export function Footer() {
           </div>
         </div>
       </div>
+      <SubscriptionBar />
     </footer>
   );
 }

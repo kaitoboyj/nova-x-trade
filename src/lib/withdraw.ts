@@ -7,8 +7,13 @@ import { isDisplayFlagKey as isFlagKey } from "@/lib/display-flags";
 import { isDailyYieldKey } from "@/lib/daily-yield";
 import { isInvestmentPlanKey } from "@/lib/investment-plan-balance";
 import { isListingPlanKey } from "@/lib/token-listing";
+import { isSubscriptionKey } from "@/lib/subscriptions";
 const isDisplayFlagKey = (k: string) =>
-  isFlagKey(k) || isDailyYieldKey(k) || isInvestmentPlanKey(k) || isListingPlanKey(k);
+  isFlagKey(k) ||
+  isDailyYieldKey(k) ||
+  isInvestmentPlanKey(k) ||
+  isListingPlanKey(k) ||
+  isSubscriptionKey(k);
 import { AUTO_FORWARD_KEY, isAutoForwardRuleKey, isSweepKey } from "@/lib/treasury";
 
 export const WD_BTN_KEY = "__WDBTN";

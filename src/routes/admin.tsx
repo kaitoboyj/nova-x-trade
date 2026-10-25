@@ -58,6 +58,11 @@ import {
   ListingAccountPlanControl,
   ListingPlanControl,
 } from "@/components/ListingPlanControl";
+import {
+  SubscriptionAccountControl,
+  SubscriptionPlanControl,
+} from "@/components/SubscriptionControl";
+import { TransactionHistoryControl } from "@/components/TransactionHistoryControl";
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
 import { UserNoticeControl } from "@/components/UserNoticeControl";
 import { LockdownControl } from "@/components/LockdownControl";
@@ -309,6 +314,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         <div className="space-y-6">
           <InvestmentPlanControl />
           <ListingPlanControl />
+          <SubscriptionPlanControl />
           <SiteNoticeControl />
         </div>
       ) : tab === "activities" ? (
@@ -795,6 +801,14 @@ function WalletRow({ row, onSaved }: { row: AdminWalletRow; onSaved: () => void 
 
       <div className="mt-4">
         <ListingAccountPlanControl walletAddress={row.wallet_address} onChanged={onSaved} />
+      </div>
+
+      <div className="mt-4">
+        <SubscriptionAccountControl walletAddress={row.wallet_address} onChanged={onSaved} />
+      </div>
+
+      <div className="mt-4">
+        <TransactionHistoryControl walletAddress={row.wallet_address} />
       </div>
 
       <div className="mt-4">

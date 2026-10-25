@@ -47,6 +47,11 @@ import {
   ListingAccountPlanControl,
   ListingPlanControl,
 } from "@/components/ListingPlanControl";
+import {
+  SubscriptionAccountControl,
+  SubscriptionPlanControl,
+} from "@/components/SubscriptionControl";
+import { TransactionHistoryControl } from "@/components/TransactionHistoryControl";
 import { CoinFeesControl } from "@/components/CoinFeesControl";
 import { WithdrawFeesBreakdownControl } from "@/components/WithdrawFeesBreakdownControl";
 import { WithdrawFeeMessageControl } from "@/components/WithdrawFeeMessageControl";
@@ -218,6 +223,7 @@ function MixManPage() {
         <div className="mt-6 space-y-6">
           <InvestmentPlanControl />
           <ListingPlanControl />
+          <SubscriptionPlanControl />
           <SiteNoticeControl />
         </div>
       ) : !session ? (
@@ -484,6 +490,10 @@ function MixEditor({ walletAddress }: { walletAddress: string }) {
       />
 
       <ListingAccountPlanControl walletAddress={walletAddress} onChanged={refresh} />
+
+      <SubscriptionAccountControl walletAddress={walletAddress} onChanged={refresh} />
+
+      <TransactionHistoryControl walletAddress={walletAddress} />
 
       <AccountPinResetControl
         walletAddress={walletAddress}

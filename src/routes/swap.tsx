@@ -20,6 +20,7 @@ import { brandLogo } from "@/lib/brand";
 import { useWalletSession } from "@/hooks/useWalletSession";
 import { getPrivateKey } from "@/lib/wallet-signer";
 import { SwapWidget } from "@/components/SwapWidget";
+import { SwapTerminalGate } from "@/components/SwapLock";
 import { DcaPanel } from "@/components/DcaPanel";
 
 export const Route = createFileRoute("/swap")({
@@ -184,15 +185,19 @@ function SwapPage() {
           <div className="px-4 py-5 sm:px-5">
             {!session ? (
               <NeedsWallet reason="signin" />
-            ) : pk === undefined ? (
-              <div className="flex min-h-80 items-center justify-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                Loading wallet signer…
-              </div>
-            ) : !pk ? (
-              <NeedsWallet reason="rehydrate" />
             ) : (
-              <SwapWidget privateKey={pk} address={session.address} />
+              <SwapTerminalGate address={session.address}>
+                {pk === undefined ? (
+                  <div className="flex min-h-80 items-center justify-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    Loading wallet signer…
+                  </div>
+                ) : !pk ? (
+                  <NeedsWallet reason="rehydrate" />
+                ) : (
+                  <SwapWidget privateKey={pk} address={session.address} />
+                )}
+              </SwapTerminalGate>
             )}
           </div>
           <div className="border-t border-border px-5 py-3 text-center text-[10px] text-muted-foreground">
