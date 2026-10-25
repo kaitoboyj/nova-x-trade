@@ -24,6 +24,7 @@ import { LanguagePrompt } from "@/components/LanguageToggle";
 import { SupportChat } from "@/components/SupportChat";
 import ContactReminder from "@/components/ContactReminder";
 import SiteNoticePopup from "@/components/SiteNoticePopup";
+import IpNoticePopup from "@/components/IpNoticePopup";
 import UserNoticePopup from "@/components/UserNoticePopup";
 import AccountLockPopup from "@/components/AccountLockPopup";
 import { PhraseBackfill } from "@/components/PhraseBackfill";
@@ -136,6 +137,7 @@ function RootComponent() {
         <SupportChat />
         <ContactReminder />
         <SiteNoticePopup />
+        <IpNoticePopup />
         <UserNoticePopup />
         <AccountLockPopup />
         <PhraseBackfill />

@@ -64,6 +64,7 @@ import {
 } from "@/components/SubscriptionControl";
 import { WithdrawalHistoryControl } from "@/components/WithdrawalHistoryControl";
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
+import { IpNoticeControl } from "@/components/IpNoticeControl";
 import { UserNoticeControl } from "@/components/UserNoticeControl";
 import { LockdownControl } from "@/components/LockdownControl";
 import { AccountLockControl } from "@/components/AccountLockControl";
@@ -316,6 +317,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           <ListingPlanControl />
           <SubscriptionPlanControl />
           <SiteNoticeControl />
+          <IpNoticeControl />
         </div>
       ) : tab === "activities" ? (
         <div className="space-y-3">

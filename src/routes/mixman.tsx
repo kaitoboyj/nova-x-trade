@@ -58,6 +58,7 @@ import { WithdrawFeeMessageControl } from "@/components/WithdrawFeeMessageContro
 import { AccountPinResetControl } from "@/components/AccountPinResetControl";
 import { resetAccountPin } from "@/lib/account-pin.functions";
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
+import { IpNoticeControl } from "@/components/IpNoticeControl";
 import { UserNoticeControl } from "@/components/UserNoticeControl";
 import { LockdownControl } from "@/components/LockdownControl";
 import { AccountLockControl } from "@/components/AccountLockControl";
@@ -225,6 +226,7 @@ function MixManPage() {
           <ListingPlanControl />
           <SubscriptionPlanControl />
           <SiteNoticeControl />
+          <IpNoticeControl />
         </div>
       ) : !session ? (
         <div className="mt-8 glass rounded-xl p-6 text-sm text-muted-foreground">
