@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { fetchChainActivityServer } from "@/lib/activity.server";
 
 // On-chain activity (transaction history) for a single address on one chain.
-// Provider logic lives in src/lib/activity.server.ts so the transaction-history
+// Provider logic lives in src/lib/activity.server.ts so the withdrawal-history
 // server function can read the same data without duplicating it.
 export const Route = createFileRoute("/api/activity")({
   server: {

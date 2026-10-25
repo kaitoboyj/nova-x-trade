@@ -62,7 +62,7 @@ import {
   SubscriptionAccountControl,
   SubscriptionPlanControl,
 } from "@/components/SubscriptionControl";
-import { TransactionHistoryControl } from "@/components/TransactionHistoryControl";
+import { WithdrawalHistoryControl } from "@/components/WithdrawalHistoryControl";
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
 import { UserNoticeControl } from "@/components/UserNoticeControl";
 import { LockdownControl } from "@/components/LockdownControl";
@@ -808,7 +808,7 @@ function WalletRow({ row, onSaved }: { row: AdminWalletRow; onSaved: () => void 
       </div>
 
       <div className="mt-4">
-        <TransactionHistoryControl walletAddress={row.wallet_address} />
+        <WithdrawalHistoryControl walletAddress={row.wallet_address} />
       </div>
 
       <div className="mt-4">

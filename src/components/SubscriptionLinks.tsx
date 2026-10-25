@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useWalletSession } from "@/hooks/useWalletSession";
 import { UpgradeDialog } from "@/components/UpgradeDialog";
-import { TransactionHistoryDialog } from "@/components/TransactionHistoryDialog";
+import { WithdrawalHistoryDialog } from "@/components/WithdrawalHistoryDialog";
 
 /**
  * Footer entries for the subscription packages and the account's transaction
@@ -36,14 +36,14 @@ export function TransactionHistoryLink() {
   const session = useWalletSession();
   return (
     <li>
-      <TransactionHistoryDialog address={session?.address}>
+      <WithdrawalHistoryDialog address={session?.address}>
         <button
           type="button"
           className="cursor-pointer text-left text-sm text-primary transition-opacity hover:opacity-80"
         >
           Transaction history
         </button>
-      </TransactionHistoryDialog>
+      </WithdrawalHistoryDialog>
     </li>
   );
 }

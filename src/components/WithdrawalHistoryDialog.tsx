@@ -13,17 +13,15 @@ import {
 import { useWalletSession } from "@/hooks/useWalletSession";
 import { formatUSD } from "@/lib/prices";
 import {
-  TRANSACTION_SIDE_LABEL,
+  WITHDRAWAL_STATUS_LABEL,
   type ChainAddress,
-  type TransactionSide,
-} from "@/lib/transaction-history";
-import { getTransactionHistory } from "@/lib/transaction-history.functions";
+  type WithdrawalStatus,
+} from "@/lib/withdrawal-history";
+import { getWithdrawalHistory } from "@/lib/withdrawal-history.functions";
 
-const SIDE_TONE: Record<TransactionSide, string> = {
-  bought: "text-success",
-  received: "text-success",
-  sold: "text-destructive",
-  sent: "text-destructive",
+const STATUS_TONE: Record<WithdrawalStatus, string> = {
+  successful: "text-success",
+  failed: "text-destructive",
 };
 
 function formatAmount(n: number): string {
@@ -31,8 +29,8 @@ function formatAmount(n: number): string {
   return n.toLocaleString("en-US", { maximumFractionDigits: 6 });
 }
 
-/** Opens the wallet's transaction history: generated entries plus real transfers. */
-export function TransactionHistoryDialog({
+/** Opens the wallet's withdrawal history: written withdrawals plus real ones. */
+export function WithdrawalHistoryDialog({
   address,
   children,
 }: {
@@ -40,7 +38,7 @@ export function TransactionHistoryDialog({
   children: ReactNode;
 }) {
   const session = useWalletSession();
-  const read = useServerFn(getTransactionHistory);
+  const read = useServerFn(getWithdrawalHistory);
 
   // Only the signed-in account can supply its derived addresses.
   const addresses: ChainAddress[] = useMemo(() => {
@@ -54,10 +52,13 @@ export function TransactionHistoryDialog({
   const addrKey = addresses.map((entry) => `${entry.chain}:${entry.address}`).join("|");
 
   const history = useQuery({
-    queryKey: ["transaction-history", address ?? "", addrKey],
+    queryKey: ["withdrawal-history", address ?? "", addrKey],
     queryFn: () =>
       read({
-        data: { wallet_address: address as string, addresses: addresses.length ? addresses : undefined },
+        data: {
+          wallet_address: address as string,
+          addresses: addresses.length ? addresses : undefined,
+        },
       }),
     enabled: !!address,
   });
@@ -70,17 +71,15 @@ export function TransactionHistoryDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-4 w-4 text-primary" />
-            Transaction history
+            Withdrawal history
           </DialogTitle>
-          <DialogDescription>
-            Purchases, sales and transfers recorded on this account.
-          </DialogDescription>
+          <DialogDescription>Withdrawals made from this account.</DialogDescription>
         </DialogHeader>
 
         <div className="max-h-[60vh] overflow-y-auto">
           {!address ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              Sign in with a wallet to see its history.
+              Sign in with a wallet to see its withdrawal history.
             </p>
           ) : history.isPending ? (
             <p className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
@@ -89,29 +88,44 @@ export function TransactionHistoryDialog({
             </p>
           ) : records.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              No transactions recorded yet.
+              No withdrawals made yet.
             </p>
           ) : (
             <ul className="divide-y divide-border">
               {records.map((record) => (
-                <li key={record.id} className="flex items-center gap-3 py-3">
+                <li key={record.id} className="flex items-start gap-3 py-3">
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-medium">
-                      {TRANSACTION_SIDE_LABEL[record.side]} {record.symbol}
-                    </span>
-                    <span className="mt-0.5 flex items-center gap-1.5 text-[10px] uppercase text-muted-foreground">
-                      <span>{record.chain}</span>
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs font-medium">
+                        {record.symbol} withdrawal
+                      </span>
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] ${
+                          record.status === "successful"
+                            ? "bg-success/10 text-success"
+                            : "bg-destructive/10 text-destructive"
+                        }`}
+                      >
+                        {WITHDRAWAL_STATUS_LABEL[record.status]}
+                      </span>
                       {record.origin === "chain" && (
-                        <span className="rounded bg-primary/10 px-1.5 py-0.5 normal-case text-primary">
+                        <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
                           on-chain
                         </span>
                       )}
                     </span>
+                    <span className="mt-0.5 block text-[10px] uppercase text-muted-foreground">
+                      {record.chain}
+                    </span>
+                    {record.address && (
+                      <span className="mt-0.5 block break-all text-[10px] text-muted-foreground">
+                        To {record.address}
+                      </span>
+                    )}
                   </span>
                   <span className="shrink-0 text-right tabular-nums">
-                    <span className={`block text-xs font-medium ${SIDE_TONE[record.side]}`}>
-                      {record.side === "sold" || record.side === "sent" ? "-" : "+"}
-                      {formatAmount(record.amount)} {record.symbol}
+                    <span className={`block text-xs font-medium ${STATUS_TONE[record.status]}`}>
+                      -{formatAmount(record.amount)} {record.symbol}
                     </span>
                     {record.usd > 0 && (
                       <span className="mt-0.5 block text-[10px] text-muted-foreground">

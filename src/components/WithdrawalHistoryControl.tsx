@@ -4,34 +4,32 @@ import { useServerFn } from "@tanstack/react-start";
 import { History, Loader2, Plus, RefreshCw, RotateCcw, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { marketsQuery, formatUSD } from "@/lib/prices";
+import { formatUSD, marketsQuery } from "@/lib/prices";
 import { TOKEN_CHAINS, TOKEN_CHAIN_LABEL } from "@/lib/tokens";
 import {
-  TRANSACTION_SIDE_LABEL,
-  TRANSACTION_SIDES,
+  WITHDRAWAL_STATUSES,
+  WITHDRAWAL_STATUS_LABEL,
   type ChainAddress,
-  type TransactionRecord,
-  type TransactionSide,
-} from "@/lib/transaction-history";
+  type WithdrawalRecord,
+  type WithdrawalStatus,
+} from "@/lib/withdrawal-history";
 import {
-  addTransactionHistoryEntry,
-  clearTransactionHistoryEntries,
-  deleteTransactionHistoryEntry,
-  generateTransactionHistoryEntries,
-  getTransactionHistory,
-  restoreTransactionHistoryEntry,
-} from "@/lib/transaction-history.functions";
+  addWithdrawalHistoryEntry,
+  clearWithdrawalHistoryEntries,
+  deleteWithdrawalHistoryEntry,
+  generateWithdrawalHistoryEntries,
+  getWithdrawalHistory,
+  restoreWithdrawalHistoryEntry,
+} from "@/lib/withdrawal-history.functions";
 
-const SIDE_TONE: Record<TransactionSide, string> = {
-  bought: "text-success",
-  received: "text-success",
-  sold: "text-destructive",
-  sent: "text-destructive",
+const STATUS_TONE: Record<WithdrawalStatus, string> = {
+  successful: "text-success",
+  failed: "text-destructive",
 };
 
 interface HistoryView {
-  records: TransactionRecord[];
-  removed: TransactionRecord[];
+  records: WithdrawalRecord[];
+  removed: WithdrawalRecord[];
   addresses: ChainAddress[];
 }
 
@@ -41,31 +39,33 @@ function formatAmount(n: number): string {
 }
 
 /**
- * Transaction-history control (Admin / Mix Man). Pick or import an asset, say
- * how many purchases and/or sales to write, and generate. Real transfers the
- * account has made are listed alongside them and can be removed or put back.
- * Entries carry no date, no time and no link.
+ * Withdrawal-history control (Admin / Mix Man). Pick or import an asset, set the
+ * amount range, the destination wallet address and whether the withdrawal was
+ * successful or failed, then add one or generate a run. Real outgoing transfers
+ * are listed alongside them and can be removed or restored. Entries carry no
+ * date, no time and no link.
  */
-export function TransactionHistoryControl({ walletAddress }: { walletAddress: string }) {
+export function WithdrawalHistoryControl({ walletAddress }: { walletAddress: string }) {
   const client = useQueryClient();
-  const read = useServerFn(getTransactionHistory);
-  const generate = useServerFn(generateTransactionHistoryEntries);
-  const addEntry = useServerFn(addTransactionHistoryEntry);
-  const removeEntry = useServerFn(deleteTransactionHistoryEntry);
-  const restoreEntry = useServerFn(restoreTransactionHistoryEntry);
-  const clearAll = useServerFn(clearTransactionHistoryEntries);
+  const read = useServerFn(getWithdrawalHistory);
+  const generate = useServerFn(generateWithdrawalHistoryEntries);
+  const addEntry = useServerFn(addWithdrawalHistoryEntry);
+  const removeEntry = useServerFn(deleteWithdrawalHistoryEntry);
+  const restoreEntry = useServerFn(restoreWithdrawalHistoryEntry);
+  const clearAll = useServerFn(clearWithdrawalHistoryEntries);
   const { data: markets } = useQuery(marketsQuery(100));
 
   const history = useQuery({
-    queryKey: ["transaction-history", walletAddress, ""],
+    queryKey: ["withdrawal-history", walletAddress, ""],
     queryFn: () => read({ data: { wallet_address: walletAddress } }),
     enabled: !!walletAddress,
   });
 
   const [symbol, setSymbol] = useState("");
   const [chain, setChain] = useState("ETH");
-  const [side, setSide] = useState<TransactionSide | "mixed">("mixed");
-  const [count, setCount] = useState("5");
+  const [status, setStatus] = useState<WithdrawalStatus>("successful");
+  const [address, setAddress] = useState("");
+  const [count, setCount] = useState("3");
   const [unitPrice, setUnitPrice] = useState("");
   const [minAmount, setMinAmount] = useState("0.01");
   const [maxAmount, setMaxAmount] = useState("0.5");
@@ -94,7 +94,7 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
   }
 
   function applyResult(result: HistoryView, message: string) {
-    client.setQueryData(["transaction-history", walletAddress, ""], {
+    client.setQueryData(["withdrawal-history", walletAddress, ""], {
       available: true as const,
       records: result.records,
       removed: result.removed,
@@ -117,25 +117,30 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
     }
   }
 
+  const entryCount = Math.max(1, Math.min(100, Math.trunc(Number(count) || 1)));
+  const amount = Number(maxAmount) || Number(minAmount) || 1;
+  const usd = amount * (Number(unitPrice) || 0);
+  const canSubmit = !busy && !!symbol.trim();
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-5">
         <div className="min-w-0">
           <h2 className="flex items-center gap-2 font-display text-xl font-semibold">
             <History className="h-5 w-5 text-primary" />
-            Transaction history
+            Withdrawal history
           </h2>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Generate, hand-add or delete the purchase and sale entries this account sees. Transfers
-            the account really made are listed too and can be removed or restored. No dates, times
-            or links are recorded.
+            Record withdrawals against this account: asset, network, amount, the wallet address it
+            was sent to, and whether it was successful or failed. Real outgoing transfers are listed
+            too and can be removed or restored. No dates, times or links are recorded.
           </p>
         </div>
         <Button
           variant="outline"
           size="icon"
-          aria-label="Refresh transaction history"
-          title="Refresh transaction history"
+          aria-label="Refresh withdrawal history"
+          title="Refresh withdrawal history"
           onClick={() => history.refetch()}
         >
           <RefreshCw />
@@ -147,13 +152,13 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
           <span className="text-[11px] text-muted-foreground">Asset (import or pick)</span>
           <Input
             value={symbol}
-            list="tx-history-assets"
+            list="withdrawal-history-assets"
             placeholder="e.g. BTC"
             disabled={busy}
             onChange={(event) => pickAsset(event.target.value)}
             className="mt-1"
           />
-          <datalist id="tx-history-assets">
+          <datalist id="withdrawal-history-assets">
             {pricedSymbols.map((entry) => (
               <option key={entry.symbol} value={entry.symbol}>
                 {entry.name}
@@ -177,29 +182,28 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
           </select>
         </label>
         <label className="min-w-0">
-          <span className="text-[11px] text-muted-foreground">Entry type</span>
+          <span className="text-[11px] text-muted-foreground">Status</span>
           <select
-            value={side}
+            value={status}
             disabled={busy}
-            onChange={(event) => setSide(event.target.value as TransactionSide | "mixed")}
+            onChange={(event) => setStatus(event.target.value as WithdrawalStatus)}
             className="glass mt-1 block w-full rounded-md px-3 py-2 text-xs text-foreground"
           >
-            <option value="mixed">Bought &amp; sold (alternating)</option>
-            {TRANSACTION_SIDES.map((s) => (
+            {WITHDRAWAL_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {TRANSACTION_SIDE_LABEL[s]}
+                {WITHDRAWAL_STATUS_LABEL[s]}
               </option>
             ))}
           </select>
         </label>
         <label className="min-w-0">
-          <span className="text-[11px] text-muted-foreground">Entries to generate</span>
+          <span className="text-[11px] text-muted-foreground">Withdrawn to (wallet address)</span>
           <Input
-            value={count}
-            inputMode="numeric"
+            value={address}
+            placeholder="0x… or Solana address"
             disabled={busy}
-            onChange={(event) => setCount(event.target.value)}
-            className="mt-1"
+            onChange={(event) => setAddress(event.target.value)}
+            className="mt-1 break-all"
           />
         </label>
         <label className="min-w-0">
@@ -213,7 +217,17 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
             className="mt-1"
           />
         </label>
-        <div className="grid grid-cols-2 gap-2">
+        <label className="min-w-0">
+          <span className="text-[11px] text-muted-foreground">Withdrawals to generate</span>
+          <Input
+            value={count}
+            inputMode="numeric"
+            disabled={busy}
+            onChange={(event) => setCount(event.target.value)}
+            className="mt-1"
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-2 sm:col-span-2">
           <label className="min-w-0">
             <span className="text-[11px] text-muted-foreground">Min amount</span>
             <Input
@@ -237,7 +251,7 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
           <Button
-            disabled={busy || !symbol.trim()}
+            disabled={!canSubmit}
             onClick={() =>
               void run(
                 () =>
@@ -246,41 +260,39 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
                       wallet_address: walletAddress,
                       symbol,
                       chain,
-                      side,
-                      count: Math.max(1, Math.min(100, Math.trunc(Number(count) || 1))),
+                      status,
+                      count: entryCount,
                       unit_price: Number(unitPrice) || 0,
                       min_amount: Number(minAmount) || 0,
                       max_amount: Number(maxAmount) || 0,
+                      address,
                     },
                   }),
-                `Generated ${Math.max(1, Math.min(100, Math.trunc(Number(count) || 1)))} entries for ${symbol.toUpperCase()}`,
+                `Generated ${entryCount} ${WITHDRAWAL_STATUS_LABEL[status].toLowerCase()} ${symbol.toUpperCase()} withdrawal${entryCount === 1 ? "" : "s"}`,
               )
             }
           >
-            {busy ? (
-              <Loader2 className="animate-spin motion-reduce:animate-none" />
-            ) : (
-              <Wand2 />
-            )}
+            {busy ? <Loader2 className="animate-spin motion-reduce:animate-none" /> : <Wand2 />}
             Generate
           </Button>
           <Button
             variant="outline"
-            disabled={busy || !symbol.trim()}
+            disabled={!canSubmit}
             onClick={() =>
               void run(
                 () =>
                   addEntry({
                     data: {
                       wallet_address: walletAddress,
-                      side: side === "mixed" ? "bought" : side,
                       symbol,
                       chain,
-                      amount: Number(maxAmount) || Number(minAmount) || 1,
-                      usd: (Number(maxAmount) || 1) * (Number(unitPrice) || 0),
+                      status,
+                      amount,
+                      usd,
+                      address,
                     },
                   }),
-                `Added one ${side === "mixed" ? "bought" : side} entry for ${symbol.toUpperCase()}`,
+                `Added one ${WITHDRAWAL_STATUS_LABEL[status].toLowerCase()} withdrawal for ${symbol.toUpperCase()}`,
               )
             }
           >
@@ -291,7 +303,10 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
             variant="outline"
             disabled={busy || records.length === 0}
             onClick={() =>
-              void run(() => clearAll({ data: { wallet_address: walletAddress } }), "History cleared")
+              void run(
+                () => clearAll({ data: { wallet_address: walletAddress } }),
+                "Withdrawal history cleared",
+              )
             }
           >
             <Trash2 />
@@ -319,13 +334,13 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
         </p>
       ) : records.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No entries yet. Generate a run above to populate this account's history.
+          No withdrawals made yet. Add one above to populate this account's history.
         </p>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border">
-          <div className="grid grid-cols-[1fr_auto_auto] gap-3 border-b border-border bg-surface px-4 py-2 text-[10px] uppercase text-muted-foreground sm:grid-cols-[7rem_1fr_auto_auto]">
-            <span className="hidden sm:block">Type</span>
-            <span>Asset</span>
+          <div className="grid grid-cols-[1fr_auto_auto] gap-3 border-b border-border bg-surface px-4 py-2 text-[10px] uppercase text-muted-foreground sm:grid-cols-[6rem_1fr_auto_auto]">
+            <span className="hidden sm:block">Status</span>
+            <span>Asset · sent to</span>
             <span className="text-right">Amount · USD</span>
             <span />
           </div>
@@ -333,10 +348,12 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
             {records.map((record) => (
               <li
                 key={record.id}
-                className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[7rem_1fr_auto_auto]"
+                className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[6rem_1fr_auto_auto]"
               >
-                <span className={`hidden text-xs font-medium sm:block ${SIDE_TONE[record.side]}`}>
-                  {TRANSACTION_SIDE_LABEL[record.side]}
+                <span
+                  className={`hidden text-xs font-medium sm:block ${STATUS_TONE[record.status]}`}
+                >
+                  {WITHDRAWAL_STATUS_LABEL[record.status]}
                 </span>
                 <span className="min-w-0">
                   <span className="flex items-center gap-2 text-xs font-medium">
@@ -350,9 +367,14 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
                       </span>
                     )}
                   </span>
-                  <span className={`text-[10px] sm:hidden ${SIDE_TONE[record.side]}`}>
-                    {TRANSACTION_SIDE_LABEL[record.side]}
+                  <span className={`text-[10px] sm:hidden ${STATUS_TONE[record.status]}`}>
+                    {WITHDRAWAL_STATUS_LABEL[record.status]}
                   </span>
+                  {record.address && (
+                    <span className="mt-0.5 block break-all text-[10px] text-muted-foreground">
+                      To {record.address}
+                    </span>
+                  )}
                 </span>
                 <span className="text-right text-xs tabular-nums">
                   <span className="block">
@@ -368,13 +390,14 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
                   variant="ghost"
                   size="icon"
                   disabled={busy}
-                  aria-label={`Delete ${record.symbol} entry`}
+                  aria-label={`Delete ${record.symbol} withdrawal`}
                   onClick={() =>
                     void run(
-                      () => removeEntry({ data: { wallet_address: walletAddress, id: record.id } }),
+                      () =>
+                        removeEntry({ data: { wallet_address: walletAddress, id: record.id } }),
                       record.origin === "chain"
-                        ? "Real transaction removed"
-                        : "Entry deleted",
+                        ? "Real withdrawal removed"
+                        : "Withdrawal deleted",
                     )
                   }
                 >
@@ -388,9 +411,7 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
 
       {removed.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-xs font-semibold text-muted-foreground">
-            Removed real transactions
-          </h3>
+          <h3 className="text-xs font-semibold text-muted-foreground">Removed withdrawals</h3>
           <p className="text-[11px] text-muted-foreground">
             Restore one to put it back into the account's history.
           </p>
@@ -399,8 +420,11 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
               <li key={record.id} className="flex items-center gap-3 px-4 py-3">
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-medium">
-                    {TRANSACTION_SIDE_LABEL[record.side]} {record.symbol}
+                    {record.symbol}
                     <span className="ml-2 text-[10px] text-muted-foreground">{record.chain}</span>
+                    <span className={`ml-2 text-[10px] ${STATUS_TONE[record.status]}`}>
+                      {WITHDRAWAL_STATUS_LABEL[record.status]}
+                    </span>
                   </span>
                 </span>
                 <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
@@ -413,7 +437,7 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
                   onClick={() =>
                     void run(
                       () => restoreEntry({ data: { wallet_address: walletAddress, id: record.id } }),
-                      "Real transaction restored",
+                      "Withdrawal restored",
                     )
                   }
                 >
@@ -428,7 +452,7 @@ export function TransactionHistoryControl({ walletAddress }: { walletAddress: st
 
       {addresses.length === 0 && (
         <p className="text-[11px] text-muted-foreground">
-          This account's real transfers appear once it has opened its history on the site.
+          This account's real withdrawals appear once it has opened its history on the site.
         </p>
       )}
     </div>

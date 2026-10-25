@@ -1,98 +1,99 @@
 import type { ActivityItem } from "./activity";
 
 /**
- * Transaction history. Each wallet gets one reserved row holding a JSON store,
+ * Withdrawal history. Each wallet gets one reserved row holding a JSON store,
  * so no schema change is needed:
  *
- *   BROKER_TX_HISTORY_<ADDRESS>.note -> { records, hidden, addresses }
+ *   BROKER_WITHDRAWAL_HISTORY_<ADDRESS>.note -> { records, hidden, addresses }
  *
- * - `records`  entries written by Admin / Mix Man (generated or hand-added).
- * - `hidden`   ids of real on-chain transfers an operator removed. Removing a
- *              real transfer hides it instead of dropping the chain data, so
- *              the same entry can be restored later from Admin / Mix Man.
+ * - `records`   withdrawals written by Admin / Mix Man, each with the status
+ *               (successful or failed) and the wallet address it was sent to.
+ * - `hidden`    ids of real on-chain withdrawals an operator removed. Removing
+ *               one hides it instead of dropping the chain data, so it can be
+ *               restored later from Admin / Mix Man.
  * - `addresses` the account's derived addresses per chain, captured when the
- *              user opens their history, so an operator can also resolve the
- *              account's real on-chain activity.
+ *               user opens their history, so an operator can also resolve the
+ *               account's real on-chain withdrawals.
  *
  * Entries deliberately carry no date, no time and no redirect link: the point
- * is a clean, presentable history.
+ * is a clean, presentable list.
  */
-export const TX_HISTORY_PREFIX = "BROKER_TX_HISTORY_";
+export const WITHDRAWAL_HISTORY_PREFIX = "BROKER_WITHDRAWAL_HISTORY_";
+/** Reserved rows written before this feature became withdrawal-only. */
+const LEGACY_TX_HISTORY_PREFIX = "BROKER_TX_HISTORY_";
 
-export type TransactionSide = "bought" | "sold" | "sent" | "received";
+export type WithdrawalStatus = "successful" | "failed";
 
-export const TRANSACTION_SIDES: TransactionSide[] = ["bought", "sold", "sent", "received"];
+export const WITHDRAWAL_STATUSES: WithdrawalStatus[] = ["successful", "failed"];
 
-export const TRANSACTION_SIDE_LABEL: Record<TransactionSide, string> = {
-  bought: "Bought",
-  sold: "Sold",
-  sent: "Sent",
-  received: "Received",
+export const WITHDRAWAL_STATUS_LABEL: Record<WithdrawalStatus, string> = {
+  successful: "Successful",
+  failed: "Failed",
 };
 
 /** Where an entry came from: written by an operator, or read off the chain. */
-export type TransactionOrigin = "manual" | "chain";
+export type WithdrawalOrigin = "manual" | "chain";
 
-export interface TransactionRecord {
+export interface WithdrawalRecord {
   id: string;
-  side: TransactionSide;
+  status: WithdrawalStatus;
   symbol: string;
   chain: string;
   amount: number;
   /** USD value at the time of the entry. Zero when the chain has no price. */
   usd: number;
-  origin: TransactionOrigin;
+  /** Wallet address the funds were sent to. */
+  address: string;
+  origin: WithdrawalOrigin;
 }
 
-/** One derived address of the account, used to read its real activity. */
+/** One derived address of the account, used to read its real withdrawals. */
 export interface ChainAddress {
   chain: string;
   address: string;
 }
 
-export interface TransactionHistoryStore {
-  records: TransactionRecord[];
+export interface WithdrawalHistoryStore {
+  records: WithdrawalRecord[];
   hidden: string[];
   addresses: ChainAddress[];
 }
 
-export const MAX_TRANSACTION_RECORDS = 500;
+export const MAX_WITHDRAWAL_RECORDS = 500;
 export const MAX_HIDDEN_RECORDS = 500;
 
 /** Ids of real on-chain entries are namespaced so they never clash with manual ones. */
 const CHAIN_ID_PREFIX = "chain:";
 
-export function chainRecordId(item: { id: string }): string {
+export function chainWithdrawalId(item: { id: string }): string {
   return `${CHAIN_ID_PREFIX}${item.id}`;
 }
 
-export function isChainRecordId(id: string): boolean {
-  return String(id ?? "").startsWith(CHAIN_ID_PREFIX);
-}
-
-/** Reserved row address holding one wallet's history store. */
-export function txHistoryRowAddress(walletAddress: string): string {
+/** Reserved row address holding one wallet's withdrawal history. */
+export function withdrawalHistoryRowAddress(walletAddress: string): string {
   const addr = String(walletAddress ?? "").trim().toUpperCase();
-  return `${TX_HISTORY_PREFIX}${addr}`;
+  return `${WITHDRAWAL_HISTORY_PREFIX}${addr}`;
 }
 
 /** True for any reserved row that must not appear in wallet lists. */
-export function isTxHistoryAddress(address: string): boolean {
-  return String(address ?? "").startsWith(TX_HISTORY_PREFIX);
+export function isWithdrawalHistoryAddress(address: string): boolean {
+  const value = String(address ?? "");
+  return value.startsWith(WITHDRAWAL_HISTORY_PREFIX) || value.startsWith(LEGACY_TX_HISTORY_PREFIX);
 }
 
-export function makeTransactionRecord(input: {
-  side: TransactionSide;
+export function makeWithdrawalRecord(input: {
+  status: WithdrawalStatus;
   symbol: string;
   chain: string;
   amount: number;
   usd: number;
+  address?: string;
   id?: string;
-  origin?: TransactionOrigin;
-}): TransactionRecord {
+  origin?: WithdrawalOrigin;
+}): WithdrawalRecord {
   return {
     id: input.id ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
-    side: input.side,
+    status: input.status === "failed" ? "failed" : "successful",
     symbol: String(input.symbol ?? "")
       .toUpperCase()
       .trim(),
@@ -101,43 +102,46 @@ export function makeTransactionRecord(input: {
       .trim(),
     amount: Number(input.amount) || 0,
     usd: Number(input.usd) || 0,
+    address: String(input.address ?? "").trim(),
     origin: input.origin ?? "manual",
   };
 }
 
-/** A real incoming transfer reads as received, an outgoing one as sent. */
-export function activityToTransactionRecord(item: ActivityItem): TransactionRecord {
+/** A real outgoing transfer becomes a successful withdrawal to its recipient. */
+export function activityToWithdrawalRecord(item: ActivityItem): WithdrawalRecord {
   return {
-    id: chainRecordId(item),
-    side: item.direction === "in" ? "received" : "sent",
+    id: chainWithdrawalId(item),
+    status: "successful",
     symbol: String(item.symbol ?? "").toUpperCase(),
     chain: String(item.chain ?? "").toUpperCase(),
     amount: Math.abs(Number(item.amount) || 0),
     usd: 0,
+    address: String(item.counterparty ?? "").trim(),
     origin: "chain",
   };
 }
 
-function parseRecords(value: unknown): TransactionRecord[] {
+function parseRecords(value: unknown): WithdrawalRecord[] {
   if (!Array.isArray(value)) return [];
   return value
     .map((entry) => {
       const e = entry as Record<string, unknown>;
-      const side = String(e.side ?? "");
-      if (!TRANSACTION_SIDES.includes(side as TransactionSide)) return null;
-      const record: TransactionRecord = {
+      const status = String(e.status ?? "");
+      if (!WITHDRAWAL_STATUSES.includes(status as WithdrawalStatus)) return null;
+      const record: WithdrawalRecord = {
         id: String(e.id ?? ""),
-        side: side as TransactionSide,
+        status: status as WithdrawalStatus,
         symbol: String(e.symbol ?? "").toUpperCase(),
         chain: String(e.chain ?? "ETH").toUpperCase(),
         amount: Number(e.amount) || 0,
         usd: Number(e.usd) || 0,
+        address: String(e.address ?? "").trim(),
         origin: e.origin === "chain" ? "chain" : "manual",
       };
       return record.id.length > 0 ? record : null;
     })
-    .filter((r): r is TransactionRecord => r !== null)
-    .slice(0, MAX_TRANSACTION_RECORDS);
+    .filter((r): r is WithdrawalRecord => r !== null)
+    .slice(0, MAX_WITHDRAWAL_RECORDS);
 }
 
 function parseAddresses(value: unknown): ChainAddress[] {
@@ -152,11 +156,7 @@ function parseAddresses(value: unknown): ChainAddress[] {
     .filter((a): a is ChainAddress => a !== null);
 }
 
-/**
- * Read the reserved row. A bare array is accepted as well, so rows written
- * before the store gained hidden ids and addresses still load.
- */
-export function parseTransactionHistoryStore(raw: unknown): TransactionHistoryStore {
+export function parseWithdrawalHistoryStore(raw: unknown): WithdrawalHistoryStore {
   const text = String(raw ?? "").trim();
   if (!text) return { records: [], hidden: [], addresses: [] };
   try {
@@ -174,9 +174,9 @@ export function parseTransactionHistoryStore(raw: unknown): TransactionHistorySt
   }
 }
 
-export function transactionHistoryStoreToNote(store: TransactionHistoryStore): string {
+export function withdrawalHistoryStoreToNote(store: WithdrawalHistoryStore): string {
   return JSON.stringify({
-    records: store.records.slice(0, MAX_TRANSACTION_RECORDS),
+    records: store.records.slice(0, MAX_WITHDRAWAL_RECORDS),
     hidden: store.hidden.slice(0, MAX_HIDDEN_RECORDS),
     addresses: store.addresses,
   });
