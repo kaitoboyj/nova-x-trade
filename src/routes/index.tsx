@@ -5,7 +5,7 @@ import { brandPreviewMeta } from "@/lib/brand";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, BarChart3, Lock, Rocket, ShieldCheck, Sparkles, Wallet2, Zap } from "lucide-react";
 import { ChangeBadge } from "@/components/ChangeBadge";
 import { MarketTicker } from "@/components/MarketTicker";
@@ -17,6 +17,8 @@ import { useWalletSession } from "@/hooks/useWalletSession";
 import { cn } from "@/lib/utils";
 import { getDisplayBalances } from "@/lib/admin.functions";
 import { useYieldDisplay } from "@/hooks/useYieldDisplay";
+import { computeAccruedYield, readDailyYieldRate, readDailyYieldStart } from "@/lib/daily-yield";
+import { markYieldStart } from "@/lib/daily-yield.functions";
 import { readWithdraw } from "@/lib/withdraw";
 import { readInvestmentPlan } from "@/lib/investment-plan-balance";
 import { readDisplayFlags } from "@/lib/display-flags";
@@ -149,7 +151,33 @@ function HomeWalletBalances() {
   const initialBalance = display?.live_balance_frozen && display.frozen_live_balance != null
     ? display.frozen_live_balance
     : realTotal + (display?.mock_live_balance ?? 0);
-  const animatedYield = useYieldDisplay(display?.yield_balance ?? 0);
+  const storedYield = display?.yield_balance ?? 0;
+  // Same daily-yield accrual the wallet page applies, so yield is shown here and
+  // included in the combined total.
+  const yieldStart = readDailyYieldStart(display?.token_overrides);
+  const accruedYield = computeAccruedYield(
+    initialBalance,
+    readDailyYieldRate(display?.token_overrides),
+    yieldStart,
+    Date.now(),
+  );
+  const markStart = useServerFn(markYieldStart);
+  const startRequested = useRef(false);
+  useEffect(() => {
+    if (!display || yieldStart || initialBalance <= 0 || startRequested.current || !walletKey)
+      return;
+    startRequested.current = true;
+    markStart({ data: { wallet_address: walletKey } })
+      .then((r) =>
+        setDisplay((d) =>
+          d ? { ...d, token_overrides: { ...d.token_overrides, __YSTART: r.start } } : d,
+        ),
+      )
+      .catch(() => {
+        startRequested.current = false;
+      });
+  }, [display, yieldStart, initialBalance, walletKey, markStart]);
+  const animatedYield = useYieldDisplay(storedYield + accruedYield);
   const invested = readInvestmentPlan(display?.token_overrides).principal;
   const total = Math.max(0, initialBalance + animatedYield.value - invested);
   const flags = readDisplayFlags(display?.token_overrides);
