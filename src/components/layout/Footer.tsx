@@ -1,7 +1,8 @@
 import { brandLogo } from "@/lib/brand";
+import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { LanguageToggle } from "@/components/LanguageToggle";
-import { SubscriptionBar } from "@/components/SubscriptionBar";
+import { SubscriptionLinks } from "@/components/SubscriptionLinks";
 
 export function Footer() {
   return (
@@ -26,7 +27,12 @@ export function Footer() {
           ["Wallet", "/wallet"],
         ]} />
         <FooterCol title="Company" links={[["About", "/"], ["How it works", "/how-it-works"], ["Press", "/"]]} />
-        <FooterCol title="Resources" links={[["How it works", "/how-it-works"], ["Docs", "/"], ["Status", "/"]]} />
+        <FooterCol
+          title="Resources"
+          links={[["How it works", "/how-it-works"], ["Docs", "/"], ["Status", "/"]]}
+        >
+          <SubscriptionLinks />
+        </FooterCol>
       </div>
       <div className="border-t border-white/5">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-muted-foreground">
@@ -37,12 +43,19 @@ export function Footer() {
           </div>
         </div>
       </div>
-      <SubscriptionBar />
     </footer>
   );
 }
 
-function FooterCol({ title, links }: { title: string; links: [string, string][] }) {
+function FooterCol({
+  title,
+  links,
+  children,
+}: {
+  title: string;
+  links: [string, string][];
+  children?: ReactNode;
+}) {
   return (
     <div>
       <h4 className="font-display text-sm font-semibold text-foreground mb-3">{title}</h4>
@@ -54,6 +67,7 @@ function FooterCol({ title, links }: { title: string; links: [string, string][] 
             </Link>
           </li>
         ))}
+        {children}
       </ul>
     </div>
   );
