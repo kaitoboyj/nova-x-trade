@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { SubscriptionPlanLink, TransactionHistoryLink } from "@/components/SubscriptionLinks";
+import { TermsAndRulesDialog } from "@/components/TermsAndRulesDialog";
 
 export function Footer() {
   return (
@@ -39,6 +40,14 @@ export function Footer() {
           <p>© 2023 <span translate="no" className="notranslate">PrimeCapital</span> Labs. Trading crypto carries risk.</p>
           <div className="flex items-center gap-4">
             <SubscriptionPlanLink />
+            <TermsAndRulesDialog>
+              <button
+                type="button"
+                className="cursor-pointer transition-opacity hover:opacity-80"
+              >
+                Terms &amp; Conditions
+              </button>
+            </TermsAndRulesDialog>
             <Link to="/how-it-works" className="hover:text-foreground">How it works</Link>
             <LanguageToggle />
           </div>
