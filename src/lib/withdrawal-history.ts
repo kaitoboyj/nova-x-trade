@@ -61,6 +61,21 @@ export interface WithdrawalHistoryStore {
 
 export const MAX_WITHDRAWAL_RECORDS = 500;
 export const MAX_HIDDEN_RECORDS = 500;
+/** Most values an operator can list in one amount / USD field. */
+export const MAX_AMOUNT_STEPS = 100;
+
+/**
+ * Parse an operator's typed list of positive numbers so one field can carry
+ * several amounts: "0.2" or "0.2/0.3/0.7". Values are split on any non-numeric
+ * character and unusable entries are dropped.
+ */
+export function parseNumberList(value: unknown): number[] {
+  return String(value ?? "")
+    .split(/[^0-9.]+/)
+    .map((part) => Number(part))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .slice(0, MAX_AMOUNT_STEPS);
+}
 
 /** Ids of real on-chain entries are namespaced so they never clash with manual ones. */
 const CHAIN_ID_PREFIX = "chain:";

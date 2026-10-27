@@ -191,8 +191,10 @@ export async function clearWithdrawalHistory(
 }
 
 /**
- * Generate a run of withdrawals to one destination address. Amounts scale off a
- * unit price so the USD values stay plausible; no date or time is stored.
+ * Generate a run of withdrawals to one destination address. The operator types
+ * the amount in the asset (and optionally the USD value it should show); several
+ * values can be supplied and are cycled through the run. No date or time is
+ * stored.
  */
 export async function generateWithdrawalHistory(
   walletAddress: string,
@@ -202,8 +204,8 @@ export async function generateWithdrawalHistory(
     status: WithdrawalStatus;
     count: number;
     unitPrice: number;
-    minAmount: number;
-    maxAmount: number;
+    amounts: number[];
+    usdValues: number[];
     address: string;
   },
 ): Promise<WithdrawalHistoryView> {
@@ -211,21 +213,24 @@ export async function generateWithdrawalHistory(
   const count = Math.max(1, Math.min(100, Math.trunc(spec.count) || 1));
   const symbol = String(spec.symbol ?? "").toUpperCase().trim() || "BTC";
   const chain = String(spec.chain ?? "ETH").toUpperCase().trim() || "ETH";
-  const unitPrice = Number(spec.unitPrice) > 0 ? Number(spec.unitPrice) : 1;
-  const min = Number(spec.minAmount) > 0 ? Number(spec.minAmount) : 0.01;
-  const max = Number(spec.maxAmount) > min ? Number(spec.maxAmount) : min * 2;
+  const unitPrice = Number(spec.unitPrice) > 0 ? Number(spec.unitPrice) : 0;
+  const amounts = (spec.amounts ?? []).filter((n) => Number.isFinite(n) && n > 0);
+  const usdValues = (spec.usdValues ?? []).filter((n) => Number.isFinite(n) && n > 0);
   const address = String(spec.address ?? "").trim();
   const generated: WithdrawalRecord[] = [];
   for (let i = 0; i < count; i += 1) {
-    const amount = min + Math.random() * (max - min);
+    const amount = amounts[i % amounts.length] ?? 0;
     const rounded = Math.round(amount * 1e6) / 1e6;
+    // A typed USD value wins; otherwise the amount is priced with the unit price.
+    const typedUsd = usdValues.length > 0 ? (usdValues[i % usdValues.length] ?? 0) : 0;
+    const usd = typedUsd > 0 ? typedUsd : Math.round(rounded * unitPrice * 100) / 100;
     generated.push(
       makeWithdrawalRecord({
         status: spec.status,
         symbol,
         chain,
         amount: rounded,
-        usd: Math.round(rounded * unitPrice * 100) / 100,
+        usd,
         address,
       }),
     );

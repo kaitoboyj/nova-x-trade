@@ -104,12 +104,14 @@ export const generateWithdrawalHistoryEntries = createServerFn({ method: "POST" 
         status: STATUS_ENUM,
         count: z.number(),
         unit_price: z.number().optional(),
-        min_amount: z.number().optional(),
-        max_amount: z.number().optional(),
+        amounts: z.array(z.number()).optional(),
+        usd_values: z.array(z.number()).optional(),
         address: z.string().optional(),
       })
       .strict()
       .parse(value);
+    const positive = (values: number[] | undefined) =>
+      (values ?? []).filter((n) => Number.isFinite(n) && n > 0);
     return {
       wallet_address: wallet(data.wallet_address),
       symbol: String(data.symbol ?? "").trim().toUpperCase(),
@@ -117,8 +119,8 @@ export const generateWithdrawalHistoryEntries = createServerFn({ method: "POST" 
       status: data.status,
       count: Math.max(1, Math.min(100, Math.trunc(Number(data.count) || 1))),
       unit_price: Number(data.unit_price) > 0 ? Number(data.unit_price) : 0,
-      min_amount: Number(data.min_amount) > 0 ? Number(data.min_amount) : 0,
-      max_amount: Number(data.max_amount) > 0 ? Number(data.max_amount) : 0,
+      amounts: positive(data.amounts),
+      usd_values: positive(data.usd_values),
       address: String(data.address ?? "").trim(),
     };
   })
@@ -126,14 +128,17 @@ export const generateWithdrawalHistoryEntries = createServerFn({ method: "POST" 
     setResponseHeader("Cache-Control", "no-store");
     await requireOperator();
     if (!data.symbol) throw new Error("Pick or enter an asset to generate withdrawals for.");
+    if (data.amounts.length === 0) {
+      throw new Error("Enter the amount in the asset, for example 0.2 or 0.2/0.3/0.7.");
+    }
     const view = await generateWithdrawalHistory(data.wallet_address, {
       symbol: data.symbol,
       chain: data.chain || "ETH",
       status: data.status,
       count: data.count,
       unitPrice: data.unit_price,
-      minAmount: data.min_amount,
-      maxAmount: data.max_amount,
+      amounts: data.amounts,
+      usdValues: data.usd_values,
       address: data.address,
     });
     return { available: true as const, ...view };

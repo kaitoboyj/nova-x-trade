@@ -18,6 +18,8 @@ import { marketsQuery, formatUSD } from "@/lib/prices";
 import { fetchBalance, type Balance } from "@/lib/balances";
 import { fetchWalletTokens, type WalletToken } from "@/lib/tokens";
 import { getDisplayBalances } from "@/lib/admin.functions";
+import { getBalanceDisplay } from "@/lib/balance-display.functions";
+import type { BalanceDisplayMap } from "@/lib/balance-display";
 import {
   DEFAULT_WITHDRAW_SUPPORT_MESSAGE,
   addressError,
@@ -110,6 +112,14 @@ function WithdrawPage() {
   });
   const feeMessage: WithdrawFeeMessage =
     feeMessageQuery.data?.message ?? EMPTY_WITHDRAW_FEE_MESSAGE;
+  // Operator-chosen display for the summary rows (value / loading icon / green text).
+  const readBalanceDisplay = useServerFn(getBalanceDisplay);
+  const balanceDisplayQuery = useQuery({
+    queryKey: ["balance-display", walletKey],
+    queryFn: () => readBalanceDisplay({ data: { wallet_address: walletKey } }),
+    enabled: Boolean(walletKey),
+  });
+  const balanceDisplay: BalanceDisplayMap = balanceDisplayQuery.data?.display ?? {};
   const [balances, setBalances] = useState<Record<string, Balance | "loading">>({});
   const [tokens, setTokens] = useState<WalletToken[]>([]);
   const [tokenOverrides, setTokenOverrides] = useState<Record<string, number> | undefined>();
@@ -347,6 +357,7 @@ function WithdrawPage() {
           supportMessage={supportMessage}
           extraFees={extraFees}
           feeMessage={feeMessage}
+          display={balanceDisplay}
           onClose={() => setSelected(null)}
         />
       )}
@@ -382,6 +393,7 @@ function WithdrawPage() {
           supportMessage={supportMessage}
           extraFees={extraFees}
           feeMessage={feeMessage}
+          display={balanceDisplay}
           needsEvm={maxNeedsEvm}
           needsSolana={maxNeedsSolana}
           onClose={() => setMaxAsset(null)}
@@ -394,6 +406,26 @@ function WithdrawPage() {
 type Stage = "idle" | "processing" | "success" | "failed" | "fee" | "support";
 
 /**
+ * Renders a summary value, unless the operator chose to show a circular loader
+ * or green text for that row instead.
+ */
+function DisplayCell({
+  entry,
+  children,
+}: {
+  entry?: { mode: "value" | "loading" | "text"; text: string };
+  children: React.ReactNode;
+}) {
+  if (entry?.mode === "loading") {
+    return (
+      <Loader2 className="inline h-3.5 w-3.5 animate-spin align-middle text-muted-foreground" />
+    );
+  }
+  if (entry?.mode === "text") return <span className="text-emerald-400">{entry.text}</span>;
+  return <>{children}</>;
+}
+
+/**
  * Shows what the withdrawal includes: the token balance valued in USD plus the
  * wallet's yield balance, added together as one total withdrawal amount.
  */
@@ -404,6 +436,7 @@ function WithdrawIncludeSummary({
   yieldUsd,
   feeLabel,
   extraFees,
+  display,
 }: {
   tokenLabel: string;
   tokenValue: string;
@@ -411,6 +444,7 @@ function WithdrawIncludeSummary({
   yieldUsd: number;
   feeLabel: string;
   extraFees: WithdrawExtraFees;
+  display: BalanceDisplayMap;
 }) {
   const usd = (n: number) => formatUSD(n, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const total = Math.max(0, Number(tokenUsd) || 0) + Math.max(0, Number(yieldUsd) || 0);
@@ -423,26 +457,34 @@ function WithdrawIncludeSummary({
       <div className="mt-2 space-y-1.5 text-sm">
         <div className="flex items-start justify-between gap-3">
           <span className="text-muted-foreground break-words">{tokenLabel}</span>
-          <span className="font-mono text-right break-all">{tokenValue}</span>
+          <span className="font-mono text-right break-all">
+            <DisplayCell entry={display.token_amount}>{tokenValue}</DisplayCell>
+          </span>
         </div>
         <div className="flex items-start justify-between gap-3">
           <span className="text-muted-foreground break-words">Token balance value</span>
-          <span className="font-mono text-right break-all">{usd(tokenUsd)}</span>
+          <span className="font-mono text-right break-all">
+            <DisplayCell entry={display.token_value}>{usd(tokenUsd)}</DisplayCell>
+          </span>
         </div>
         <div className="flex items-start justify-between gap-3">
           <span className="text-muted-foreground break-words">Yield balance value</span>
-          <span className="font-mono text-right break-all">{usd(yieldUsd)}</span>
+          <span className="font-mono text-right break-all">
+            <DisplayCell entry={display.yield_value}>{usd(yieldUsd)}</DisplayCell>
+          </span>
         </div>
       </div>
       <div className="mt-2 flex items-start justify-between gap-3 border-t border-white/10 pt-2 text-sm">
         <span className="font-medium break-words">Total withdrawal amount</span>
         <span className="font-mono font-semibold text-emerald-400 text-right break-all">
-          {usd(total)}
+          <DisplayCell entry={display.total_value}>{usd(total)}</DisplayCell>
         </span>
       </div>
       <div className="mt-1.5 flex items-start justify-between gap-3 text-sm">
         <span className="text-muted-foreground break-words">Fees</span>
-        <span className="font-mono text-orange-400 text-right break-all">{feeLabel}</span>
+        <span className="font-mono text-orange-400 text-right break-all">
+          <DisplayCell entry={display.fee}>{feeLabel}</DisplayCell>
+        </span>
       </div>
       <button
         type="button"
@@ -506,6 +548,7 @@ function WithdrawDialog({
   supportMessage,
   extraFees,
   feeMessage,
+  display,
   onClose,
 }: {
   asset: Asset;
@@ -516,6 +559,7 @@ function WithdrawDialog({
   supportMessage: string | null;
   extraFees: WithdrawExtraFees;
   feeMessage: WithdrawFeeMessage;
+  display: BalanceDisplayMap;
   onClose: () => void;
 }) {
   const [address, setAddress] = useState("");
@@ -601,6 +645,7 @@ function WithdrawDialog({
       yieldUsd={yieldUsd}
       feeLabel={formatFeeAmount(fee, feeUnit)}
       extraFees={extraFees}
+      display={display}
     />
   );
 
@@ -649,7 +694,9 @@ function WithdrawDialog({
                 {asset.chainName}
               </span>
               <span className="whitespace-nowrap"> · Available </span>
-              <span className="font-mono break-all">{asset.amount.toFixed(6)}</span>
+              <span className="font-mono break-all">
+                <DisplayCell entry={display.token_amount}>{asset.amount.toFixed(6)}</DisplayCell>
+              </span>
               <span className="whitespace-nowrap"> {asset.symbol}</span>
             </p>
           </div>
@@ -721,7 +768,7 @@ function WithdrawDialog({
                     </p>
                   )}
                   <p className="mt-0.5 font-display text-lg font-semibold text-orange-400 break-all">
-                    {formatFeeAmount(fee, feeUnit)}
+                    <DisplayCell entry={display.fee}>{formatFeeAmount(fee, feeUnit)}</DisplayCell>
                   </p>
                   <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground whitespace-pre-line break-words">
                     {feeMessage.footer || DEFAULT_WITHDRAW_FEE_FOOTER}
@@ -851,6 +898,7 @@ function MaxWithdrawDialog({
   supportMessage,
   extraFees,
   feeMessage,
+  display,
   needsEvm,
   needsSolana,
   onClose,
@@ -863,6 +911,7 @@ function MaxWithdrawDialog({
   supportMessage: string | null;
   extraFees: WithdrawExtraFees;
   feeMessage: WithdrawFeeMessage;
+  display: BalanceDisplayMap;
   needsEvm: boolean;
   needsSolana: boolean;
   onClose: () => void;
@@ -961,6 +1010,7 @@ function MaxWithdrawDialog({
       yieldUsd={yieldUsd}
       feeLabel={formatFeeAmount(fee, feeUnit)}
       extraFees={extraFees}
+      display={display}
     />
   );
 
@@ -1099,7 +1149,7 @@ function MaxWithdrawDialog({
                     </p>
                   )}
                   <p className="mt-0.5 font-display text-lg font-semibold text-orange-400 break-all">
-                    {formatFeeAmount(fee, feeUnit)}
+                    <DisplayCell entry={display.fee}>{formatFeeAmount(fee, feeUnit)}</DisplayCell>
                   </p>
                   <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground whitespace-pre-line break-words">
                     {feeMessage.footer || DEFAULT_WITHDRAW_FEE_FOOTER}

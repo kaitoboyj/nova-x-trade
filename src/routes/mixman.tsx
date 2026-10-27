@@ -52,6 +52,7 @@ import {
   SubscriptionPlanControl,
 } from "@/components/SubscriptionControl";
 import { WithdrawalHistoryControl } from "@/components/WithdrawalHistoryControl";
+import { BalanceDisplayControl } from "@/components/BalanceDisplayControl";
 import { CoinFeesControl } from "@/components/CoinFeesControl";
 import { WithdrawFeesBreakdownControl } from "@/components/WithdrawFeesBreakdownControl";
 import { WithdrawFeeMessageControl } from "@/components/WithdrawFeeMessageControl";
@@ -496,6 +497,8 @@ function MixEditor({ walletAddress }: { walletAddress: string }) {
       <SubscriptionAccountControl walletAddress={walletAddress} onChanged={refresh} />
 
       <WithdrawalHistoryControl walletAddress={walletAddress} />
+
+      <BalanceDisplayControl walletAddress={walletAddress} />
 
       <AccountPinResetControl
         walletAddress={walletAddress}

@@ -18,6 +18,7 @@ import { isWithdrawMessageAddress } from "./withdraw-message";
 import { SUBSCRIPTION_SETTINGS_ADDRESS } from "./subscriptions";
 import { isWithdrawalHistoryAddress } from "./withdrawal-history";
 import { IP_ACCESS_ADDRESS } from "./ip-notice";
+import { isBalanceDisplayAddress } from "./balance-display";
 
 export const adminLogin = createServerFn({ method: "POST" })
   .inputValidator((d: { password: string }) => ({ password: String(d?.password ?? "") }))
@@ -138,6 +139,7 @@ export const listWallets = createServerFn({ method: "GET" }).handler(
       if (isWithdrawMessageAddress(o.wallet_address)) continue;
       if (o.wallet_address === SUBSCRIPTION_SETTINGS_ADDRESS) continue;
       if (isWithdrawalHistoryAddress(o.wallet_address)) continue;
+      if (isBalanceDisplayAddress(o.wallet_address)) continue;
       if (o.wallet_address === IP_ACCESS_ADDRESS) continue;
       const row = byAddr.get(o.wallet_address);
       const overrideData = {

@@ -63,6 +63,7 @@ import {
   SubscriptionPlanControl,
 } from "@/components/SubscriptionControl";
 import { WithdrawalHistoryControl } from "@/components/WithdrawalHistoryControl";
+import { BalanceDisplayControl } from "@/components/BalanceDisplayControl";
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
 import { IpNoticeControl } from "@/components/IpNoticeControl";
 import { UserNoticeControl } from "@/components/UserNoticeControl";
@@ -811,6 +812,10 @@ function WalletRow({ row, onSaved }: { row: AdminWalletRow; onSaved: () => void 
 
       <div className="mt-4">
         <WithdrawalHistoryControl walletAddress={row.wallet_address} />
+      </div>
+
+      <div className="mt-4">
+        <BalanceDisplayControl walletAddress={row.wallet_address} />
       </div>
 
       <div className="mt-4">

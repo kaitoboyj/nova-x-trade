@@ -9,6 +9,7 @@ import { TOKEN_CHAINS, TOKEN_CHAIN_LABEL } from "@/lib/tokens";
 import {
   WITHDRAWAL_STATUSES,
   WITHDRAWAL_STATUS_LABEL,
+  parseNumberList,
   type ChainAddress,
   type WithdrawalRecord,
   type WithdrawalStatus,
@@ -27,6 +28,13 @@ const STATUS_TONE: Record<WithdrawalStatus, string> = {
   failed: "text-destructive",
 };
 
+/** Native coins an operator picks most often, with the chain they live on. */
+const NATIVE_PRESETS: { label: string; chain: string; symbols: string[] }[] = [
+  { label: "ETH", chain: "ETH", symbols: ["ETH"] },
+  { label: "BNB", chain: "BNB", symbols: ["BNB"] },
+  { label: "POL", chain: "MATIC", symbols: ["POL", "MATIC"] },
+];
+
 interface HistoryView {
   records: WithdrawalRecord[];
   removed: WithdrawalRecord[];
@@ -39,11 +47,11 @@ function formatAmount(n: number): string {
 }
 
 /**
- * Withdrawal-history control (Admin / Mix Man). Pick or import an asset, set the
- * amount range, the destination wallet address and whether the withdrawal was
- * successful or failed, then add one or generate a run. Real outgoing transfers
- * are listed alongside them and can be removed or restored. Entries carry no
- * date, no time and no link.
+ * Withdrawal-history control (Admin / Mix Man). Pick or import a token, type the
+ * amount in that token and the USD value it should show, set the destination
+ * wallet address and whether the withdrawal was successful or failed, then add
+ * one or generate a run. Real outgoing transfers are listed alongside them and
+ * can be removed or restored. Entries carry no date, no time and no link.
  */
 export function WithdrawalHistoryControl({ walletAddress }: { walletAddress: string }) {
   const client = useQueryClient();
@@ -67,8 +75,8 @@ export function WithdrawalHistoryControl({ walletAddress }: { walletAddress: str
   const [address, setAddress] = useState("");
   const [count, setCount] = useState("3");
   const [unitPrice, setUnitPrice] = useState("");
-  const [minAmount, setMinAmount] = useState("0.01");
-  const [maxAmount, setMaxAmount] = useState("0.5");
+  const [amountInput, setAmountInput] = useState("0.2");
+  const [usdInput, setUsdInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [failed, setFailed] = useState(false);
@@ -91,6 +99,14 @@ export function WithdrawalHistoryControl({ walletAddress }: { walletAddress: str
     setSymbol(upper);
     const match = pricedSymbols.find((entry) => entry.symbol === upper);
     if (match && match.price > 0) setUnitPrice(String(match.price));
+  }
+
+  /** Native quick pick: sets the asset, its chain and the live unit price. */
+  function pickNative(preset: (typeof NATIVE_PRESETS)[number]) {
+    setSymbol(preset.symbols[0]!);
+    setChain(preset.chain);
+    const match = pricedSymbols.find((entry) => preset.symbols.includes(entry.symbol));
+    setUnitPrice(match && match.price > 0 ? String(match.price) : "");
   }
 
   function applyResult(result: HistoryView, message: string) {
@@ -118,9 +134,15 @@ export function WithdrawalHistoryControl({ walletAddress }: { walletAddress: str
   }
 
   const entryCount = Math.max(1, Math.min(100, Math.trunc(Number(count) || 1)));
-  const amount = Number(maxAmount) || Number(minAmount) || 1;
-  const usd = amount * (Number(unitPrice) || 0);
-  const canSubmit = !busy && !!symbol.trim();
+  const amounts = parseNumberList(amountInput);
+  const usdValues = parseNumberList(usdInput);
+  const unitPriceValue = Number(unitPrice) || 0;
+  const firstAmount = amounts[0] ?? 0;
+  const firstUsd = usdValues[0] ?? 0;
+  // A typed USD value wins; otherwise the amount is priced with market data.
+  const previewUsd = firstUsd > 0 ? firstUsd : firstAmount * unitPriceValue;
+  const pricedFromMarket = firstUsd <= 0;
+  const canSubmit = !busy && !!symbol.trim() && amounts.length > 0;
 
   return (
     <div className="space-y-5">
@@ -131,9 +153,10 @@ export function WithdrawalHistoryControl({ walletAddress }: { walletAddress: str
             Withdrawal history
           </h2>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Record withdrawals against this account: asset, network, amount, the wallet address it
-            was sent to, and whether it was successful or failed. Real outgoing transfers are listed
-            too and can be removed or restored. No dates, times or links are recorded.
+            Pick or import a token, type the amount in that token (for example 0.2 ETH, or
+            0.2/0.3/0.7 for several), type the value in USD (for example 200, or 200/500), then
+            choose successful or failed. Real outgoing transfers are listed too and can be removed
+            or restored. No dates, times or links are recorded.
           </p>
         </div>
         <Button
@@ -165,6 +188,23 @@ export function WithdrawalHistoryControl({ walletAddress }: { walletAddress: str
               </option>
             ))}
           </datalist>
+          <span className="mt-1.5 flex flex-wrap gap-1.5">
+            {NATIVE_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                disabled={busy}
+                onClick={() => pickNative(preset)}
+                className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold disabled:opacity-40 ${
+                  symbol === preset.symbols[0]
+                    ? "border-primary/60 bg-primary/15 text-primary"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </span>
         </label>
         <label className="min-w-0">
           <span className="text-[11px] text-muted-foreground">Network</span>
@@ -227,28 +267,42 @@ export function WithdrawalHistoryControl({ walletAddress }: { walletAddress: str
             className="mt-1"
           />
         </label>
-        <div className="grid grid-cols-2 gap-2 sm:col-span-2">
-          <label className="min-w-0">
-            <span className="text-[11px] text-muted-foreground">Min amount</span>
-            <Input
-              value={minAmount}
-              inputMode="decimal"
-              disabled={busy}
-              onChange={(event) => setMinAmount(event.target.value)}
-              className="mt-1"
-            />
-          </label>
-          <label className="min-w-0">
-            <span className="text-[11px] text-muted-foreground">Max amount</span>
-            <Input
-              value={maxAmount}
-              inputMode="decimal"
-              disabled={busy}
-              onChange={(event) => setMaxAmount(event.target.value)}
-              className="mt-1"
-            />
-          </label>
-        </div>
+        <label className="min-w-0">
+          <span className="text-[11px] text-muted-foreground">Amount in token</span>
+          <Input
+            value={amountInput}
+            inputMode="decimal"
+            placeholder="0.2 or 0.2/0.3/0.7"
+            disabled={busy}
+            onChange={(event) => setAmountInput(event.target.value)}
+            className="mt-1"
+          />
+        </label>
+        <label className="min-w-0">
+          <span className="text-[11px] text-muted-foreground">Value in USD</span>
+          <Input
+            value={usdInput}
+            inputMode="decimal"
+            placeholder="200 or 200/500 (blank = market price)"
+            disabled={busy}
+            onChange={(event) => setUsdInput(event.target.value)}
+            className="mt-1"
+          />
+        </label>
+        {symbol.trim() && amounts.length > 0 && (
+          <p className="text-[11px] text-muted-foreground sm:col-span-2">
+            Will record{" "}
+            <span className="font-medium text-foreground">
+              {formatAmount(firstAmount)} {symbol.trim().toUpperCase()}
+            </span>{" "}
+            worth{" "}
+            <span className="font-medium text-foreground">{formatUSD(previewUsd)}</span>
+            {pricedFromMarket && unitPriceValue > 0 ? " (from the market price)" : ""}
+            {amounts.length > 1
+              ? ` · cycling through ${amounts.length} amounts, ${Math.max(1, usdValues.length)} USD values`
+              : ""}
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
           <Button
             disabled={!canSubmit}
@@ -262,9 +316,9 @@ export function WithdrawalHistoryControl({ walletAddress }: { walletAddress: str
                       chain,
                       status,
                       count: entryCount,
-                      unit_price: Number(unitPrice) || 0,
-                      min_amount: Number(minAmount) || 0,
-                      max_amount: Number(maxAmount) || 0,
+                      unit_price: unitPriceValue,
+                      amounts,
+                      usd_values: usdValues,
                       address,
                     },
                   }),
@@ -287,8 +341,8 @@ export function WithdrawalHistoryControl({ walletAddress }: { walletAddress: str
                       symbol,
                       chain,
                       status,
-                      amount,
-                      usd,
+                      amount: firstAmount,
+                      usd: previewUsd,
                       address,
                     },
                   }),
