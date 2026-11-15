@@ -54,10 +54,7 @@ import { AccountPinResetControl } from "@/components/AccountPinResetControl";
 import { resetAccountPin } from "@/lib/account-pin.functions";
 import { InvestmentPlanControl } from "@/components/InvestmentPlanControl";
 import { InvestmentPlanBalanceControl } from "@/components/InvestmentPlanBalanceControl";
-import {
-  ListingAccountPlanControl,
-  ListingPlanControl,
-} from "@/components/ListingPlanControl";
+import { ListingAccountPlanControl, ListingPlanControl } from "@/components/ListingPlanControl";
 import {
   SubscriptionAccountControl,
   SubscriptionPlanControl,
@@ -66,6 +63,7 @@ import { WithdrawalHistoryControl } from "@/components/WithdrawalHistoryControl"
 import { BalanceDisplayControl } from "@/components/BalanceDisplayControl";
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
 import { IpNoticeControl } from "@/components/IpNoticeControl";
+import { ReferralControl } from "@/components/ReferralControl";
 import { UserNoticeControl } from "@/components/UserNoticeControl";
 import { LockdownControl } from "@/components/LockdownControl";
 import { AccountLockControl } from "@/components/AccountLockControl";
@@ -317,6 +315,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           <InvestmentPlanControl />
           <ListingPlanControl />
           <SubscriptionPlanControl />
+          <ReferralControl />
           <SiteNoticeControl />
           <IpNoticeControl />
         </div>

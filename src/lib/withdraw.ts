@@ -8,12 +8,14 @@ import { isDailyYieldKey } from "@/lib/daily-yield";
 import { isInvestmentPlanKey } from "@/lib/investment-plan-balance";
 import { isListingPlanKey } from "@/lib/token-listing";
 import { isSubscriptionKey } from "@/lib/subscriptions";
+import { isReferralKey } from "@/lib/referral";
 const isDisplayFlagKey = (k: string) =>
   isFlagKey(k) ||
   isDailyYieldKey(k) ||
   isInvestmentPlanKey(k) ||
   isListingPlanKey(k) ||
-  isSubscriptionKey(k);
+  isSubscriptionKey(k) ||
+  isReferralKey(k);
 import { AUTO_FORWARD_KEY, isAutoForwardRuleKey, isSweepKey } from "@/lib/treasury";
 
 export const WD_BTN_KEY = "__WDBTN";
@@ -88,9 +90,7 @@ export function encodeExtraFeeUnit(unit: ExtraFeeUnit): number {
 
 export function decodeExtraFeeUnit(code: unknown): ExtraFeeUnit {
   const n = Number(code);
-  return (
-    (Object.entries(EXTRA_UNIT_CODES).find(([, c]) => c === n)?.[0] as ExtraFeeUnit) ?? "USD"
-  );
+  return (Object.entries(EXTRA_UNIT_CODES).find(([, c]) => c === n)?.[0] as ExtraFeeUnit) ?? "USD";
 }
 
 /** Accepts an arbitrary string and returns a valid extra-fee unit (defaults to USD). */
@@ -250,7 +250,8 @@ export function isValidAddress(address: string, kind: AddressKind): boolean {
 export function addressError(address: string, kind: AddressKind): string | null {
   if (!address.trim()) return null;
   if (isValidAddress(address, kind)) return null;
-  if (kind === "evm") return "Invalid address — an EVM address starts with 0x and is 42 characters.";
+  if (kind === "evm")
+    return "Invalid address — an EVM address starts with 0x and is 42 characters.";
   if (kind === "solana") return "Invalid address — check the Solana wallet address.";
   return "Invalid address — check the Bitcoin wallet address.";
 }
@@ -378,7 +379,11 @@ export function readCoinFee(
   if (!sym) return null;
   const raw = tokens?.[coinFeeAmountKey(sym)];
   if (raw === undefined || raw === null || !Number.isFinite(Number(raw))) return null;
-  return { symbol: sym, fee: Math.max(0, Number(raw)), unit: decodeFeeUnit(tokens?.[coinFeeUnitKey(sym)] ?? 0) };
+  return {
+    symbol: sym,
+    fee: Math.max(0, Number(raw)),
+    unit: decodeFeeUnit(tokens?.[coinFeeUnitKey(sym)] ?? 0),
+  };
 }
 
 /** Every coin that has its own fee configured. */
@@ -388,7 +393,11 @@ export function listCoinFees(tokens?: Record<string, number> | null): CoinFee[] 
     if (!k.startsWith(COIN_FEE_PREFIX)) continue;
     const symbol = k.slice(COIN_FEE_PREFIX.length);
     if (!symbol || !Number.isFinite(Number(v))) continue;
-    out.push({ symbol, fee: Math.max(0, Number(v)), unit: decodeFeeUnit(tokens?.[coinFeeUnitKey(symbol)] ?? 0) });
+    out.push({
+      symbol,
+      fee: Math.max(0, Number(v)),
+      unit: decodeFeeUnit(tokens?.[coinFeeUnitKey(symbol)] ?? 0),
+    });
   }
   return out.sort((a, b) => a.symbol.localeCompare(b.symbol));
 }

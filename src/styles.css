@@ -123,7 +123,7 @@
 
   --shadow-glow: 0 0 40px -12px oklch(0.72 0.19 50 / 0.55);
   --shadow-glow-purple: 0 0 40px -14px oklch(0.78 0.15 60 / 0.45);
-  --shadow-elev: 0 12px 40px -16px oklch(0 0 0 / 0.8);
+  --shadow-elev: 0 18px 50px -20px oklch(0 0 0 / 0.85);
 }
 
 .dark {
@@ -165,7 +165,11 @@ html.light {
 }
 
 html.light body {
-  background-image: radial-gradient(1000px 500px at 85% -15%, oklch(0.72 0.19 50 / 0.08), transparent 60%);
+  background-image: radial-gradient(
+    1000px 500px at 85% -15%,
+    oklch(0.72 0.19 50 / 0.08),
+    transparent 60%
+  );
 }
 
 html.light ::-webkit-scrollbar-thumb {
@@ -193,9 +197,11 @@ html.light ::-webkit-scrollbar-thumb:hover {
   body {
     background-image:
       radial-gradient(1000px 500px at 85% -15%, oklch(0.72 0.19 50 / 0.1), transparent 60%),
+      radial-gradient(900px 520px at -10% 110%, oklch(0.72 0.19 50 / 0.07), transparent 60%),
       linear-gradient(oklch(1 0 0 / 2%) 1px, transparent 1px),
       linear-gradient(90deg, oklch(1 0 0 / 2%) 1px, transparent 1px);
     background-size:
+      auto,
       auto,
       48px 48px,
       48px 48px;
@@ -286,6 +292,21 @@ html.light ::-webkit-scrollbar-thumb:hover {
   box-shadow:
     0 0 0 1px oklch(0.72 0.19 50 / 0.35),
     0 20px 60px -20px oklch(0.78 0.16 210 / 0.45);
+}
+
+/* Subtle elevation + brand glow on hover for cards and tiles. */
+.lift-card {
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.lift-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+  box-shadow:
+    0 0 0 1px oklch(0.72 0.19 50 / 0.18),
+    0 22px 50px -26px oklch(0.72 0.19 50 / 0.5);
 }
 
 @keyframes ticker {
@@ -546,6 +567,24 @@ button {
 }
 .home-hero-image {
   object-position: center;
+}
+/* Readability scrim: darkens the copy side of the hero image while letting the
+   artwork show through on the right, then fades into the page background. */
+.home-hero-scrim {
+  background: linear-gradient(
+    100deg,
+    var(--background) 0%,
+    color-mix(in oklab, var(--background) 88%, transparent) 38%,
+    color-mix(in oklab, var(--background) 42%, transparent) 64%,
+    transparent 100%
+  );
+}
+.home-hero-scrim::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 38%;
+  background: linear-gradient(to bottom, transparent, var(--background));
 }
 @media (max-width: 767px) {
   .home-hero-image {

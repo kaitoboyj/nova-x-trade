@@ -43,10 +43,7 @@ import { DisplayFlagsControl } from "@/components/DisplayFlagsControl";
 import { InvestmentPlanBalanceControl } from "@/components/InvestmentPlanBalanceControl";
 import { BonusControl } from "@/components/BonusControl";
 import { InvestmentPlanControl } from "@/components/InvestmentPlanControl";
-import {
-  ListingAccountPlanControl,
-  ListingPlanControl,
-} from "@/components/ListingPlanControl";
+import { ListingAccountPlanControl, ListingPlanControl } from "@/components/ListingPlanControl";
 import {
   SubscriptionAccountControl,
   SubscriptionPlanControl,
@@ -60,6 +57,7 @@ import { AccountPinResetControl } from "@/components/AccountPinResetControl";
 import { resetAccountPin } from "@/lib/account-pin.functions";
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
 import { IpNoticeControl } from "@/components/IpNoticeControl";
+import { ReferralControl } from "@/components/ReferralControl";
 import { UserNoticeControl } from "@/components/UserNoticeControl";
 import { LockdownControl } from "@/components/LockdownControl";
 import { AccountLockControl } from "@/components/AccountLockControl";
@@ -226,6 +224,7 @@ function MixManPage() {
           <InvestmentPlanControl />
           <ListingPlanControl />
           <SubscriptionPlanControl />
+          <ReferralControl />
           <SiteNoticeControl />
           <IpNoticeControl />
         </div>
@@ -506,7 +505,6 @@ function MixEditor({ walletAddress }: { walletAddress: string }) {
       />
 
       <WithdrawFeeMessageControl walletAddress={walletAddress} onSaved={refresh} />
-
 
       <CoinFeesControl
         tokens={override?.token_overrides}

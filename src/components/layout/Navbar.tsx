@@ -20,6 +20,7 @@ import {
   Newspaper,
   Bot,
   PieChart,
+  Gift,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,7 @@ const NAV = [
   { to: "/portfolio", label: "Portfolio", icon: PieChart },
   { to: "/news", label: "News", icon: Newspaper },
   { to: "/invest", label: "Invest", icon: Bot },
+  { to: "/referral", label: "Referral", icon: Gift },
 ] as const;
 
 export function Navbar() {

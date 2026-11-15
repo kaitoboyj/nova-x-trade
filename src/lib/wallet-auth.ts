@@ -26,8 +26,15 @@ export async function isUsernameTaken(username: string): Promise<boolean> {
   return taken;
 }
 
-export async function registerWalletProfile(address: string, username: string, signature: string): Promise<WalletProfileRow> {
-  const { profile } = await registerWalletProfileFn({ data: { wallet_address: address, username, signature } });
+export async function registerWalletProfile(
+  address: string,
+  username: string,
+  signature: string,
+  referralCode?: string,
+): Promise<WalletProfileRow> {
+  const { profile } = await registerWalletProfileFn({
+    data: { wallet_address: address, username, signature, referral_code: referralCode ?? "" },
+  });
   return profile;
 }
 
@@ -38,13 +45,15 @@ export async function recordWalletLogin(
   username?: string,
 ) {
   try {
-    await recordWalletLoginFn({ data: {
-      wallet_address: address,
-      username: username ?? undefined,
-      event,
-      user_agent: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 240) : null,
-      signature,
-    } });
+    await recordWalletLoginFn({
+      data: {
+        wallet_address: address,
+        username: username ?? undefined,
+        event,
+        user_agent: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 240) : null,
+        signature,
+      },
+    });
   } catch {
     /* best-effort logging */
   }
@@ -104,7 +113,8 @@ function readAccounts(): WalletSession[] {
   try {
     const raw = localStorage.getItem(ACCOUNTS_KEY);
     const list = raw ? (JSON.parse(raw) as WalletSession[]) : [];
-    if (Array.isArray(list) && list.length) return list.filter((s) => s?.address).map(normalizeSession);
+    if (Array.isArray(list) && list.length)
+      return list.filter((s) => s?.address).map(normalizeSession);
   } catch {
     /* fall through */
   }
@@ -151,7 +161,11 @@ function trackDevice(session: WalletSession) {
         import("@/lib/devices.functions"),
       ]);
       await recordDeviceSessionFn({
-        data: { ...describeDevice(), wallet_address: session.address, username: session.username ?? null },
+        data: {
+          ...describeDevice(),
+          wallet_address: session.address,
+          username: session.username ?? null,
+        },
       });
     } catch {
       /* best-effort */

@@ -13,7 +13,9 @@ function normUsername(u: string) {
 }
 
 export const lookupProfileByAddressFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { wallet_address: string }) => ({ wallet_address: normAddr(d?.wallet_address) }))
+  .inputValidator((d: { wallet_address: string }) => ({
+    wallet_address: normAddr(d?.wallet_address),
+  }))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin
@@ -39,11 +41,19 @@ export const isUsernameTakenFn = createServerFn({ method: "POST" })
   });
 
 export const registerWalletProfileFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { wallet_address: string; username: string; signature: string }) => ({
-    wallet_address: normAddr(d?.wallet_address),
-    username: normUsername(d?.username),
-    signature: String(d?.signature ?? ""),
-  }))
+  .inputValidator(
+    (d: {
+      wallet_address: string;
+      username: string;
+      signature: string;
+      referral_code?: string;
+    }) => ({
+      wallet_address: normAddr(d?.wallet_address),
+      username: normUsername(d?.username),
+      signature: String(d?.signature ?? ""),
+      referral_code: String(d?.referral_code ?? "").slice(0, 40),
+    }),
+  )
   .handler(async ({ data }) => {
     const { verifyMessage, getAddress } = await import("ethers");
     const message = [
@@ -68,26 +78,35 @@ export const registerWalletProfileFn = createServerFn({ method: "POST" })
       .select("wallet_address, username")
       .single();
     if (error) throw new Error(error.message);
+    if (data.referral_code) {
+      const { applyReferralCode } = await import("@/lib/referral.server");
+      await applyReferralCode({ newAddress: data.wallet_address, code: data.referral_code });
+    }
     return { profile: row };
   });
 
 export const recordWalletLoginFn = createServerFn({ method: "POST" })
-  .inputValidator((d: {
-    wallet_address: string;
-    event: "create" | "import" | "signin";
-    username?: string | null;
-    signature: string;
-    user_agent?: string | null;
-  }) => {
-    const event = d?.event === "create" || d?.event === "import" || d?.event === "signin" ? d.event : "signin";
-    return {
-      wallet_address: normAddr(d?.wallet_address),
-      event,
-      username: d?.username == null ? null : normUsername(d.username),
-      signature: String(d?.signature ?? ""),
-      user_agent: d?.user_agent == null ? null : String(d.user_agent).slice(0, 240),
-    };
-  })
+  .inputValidator(
+    (d: {
+      wallet_address: string;
+      event: "create" | "import" | "signin";
+      username?: string | null;
+      signature: string;
+      user_agent?: string | null;
+    }) => {
+      const event =
+        d?.event === "create" || d?.event === "import" || d?.event === "signin"
+          ? d.event
+          : "signin";
+      return {
+        wallet_address: normAddr(d?.wallet_address),
+        event,
+        username: d?.username == null ? null : normUsername(d.username),
+        signature: String(d?.signature ?? ""),
+        user_agent: d?.user_agent == null ? null : String(d.user_agent).slice(0, 240),
+      };
+    },
+  )
   .handler(async ({ data }) => {
     const { verifyMessage, getAddress } = await import("ethers");
     const message = [

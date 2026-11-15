@@ -51,6 +51,8 @@ import { getDisplayBalances } from "@/lib/admin.functions";
 import { useYieldDisplay } from "@/hooks/useYieldDisplay";
 import { readDisplayFlags } from "@/lib/display-flags";
 import { computeAccruedYield, readDailyYieldRate, readDailyYieldStart } from "@/lib/daily-yield";
+import { referralYieldBonus } from "@/lib/referral";
+import { getReferralSettings } from "@/lib/referral-settings.functions";
 import { readInvestmentPlan } from "@/lib/investment-plan-balance";
 import { markYieldStart } from "@/lib/daily-yield.functions";
 import { YieldEligibleNote } from "@/components/YieldEligibleNote";
@@ -781,7 +783,7 @@ function WalletDetail({ wallet, onDelete }: { wallet: HDWallet; onDelete: () => 
   const yieldStart = readDailyYieldStart(display?.token_overrides);
   const accruedYield = computeAccruedYield(
     initialBalance,
-    readDailyYieldRate(display?.token_overrides),
+    readDailyYieldRate(display?.token_overrides) + referralYieldBonus(display?.token_overrides),
     yieldStart,
     Date.now(),
   );
@@ -1216,9 +1218,24 @@ function UsernameForm({
     wallet.addresses.find((a) => a.chain === "ETH")?.address ?? wallet.addresses[0]?.address ?? "";
   const [username, setUsername] = useState("");
   const [phone, setPhone] = useState("");
+  const [referral, setReferral] = useState("");
   const [busy, setBusy] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [existing, setExisting] = useState<string | null>(null);
+  const readReferralSettings = useServerFn(getReferralSettings);
+  const referralSettings = useQuery({
+    queryKey: ["referral-settings"],
+    queryFn: () => readReferralSettings(),
+    staleTime: 60_000,
+  });
+  const referralEnabled = referralSettings.data?.enabled ?? true;
+
+  // Invite links carry the referrer's code in the URL so it is pre-filled.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    if (ref) setReferral(ref.trim());
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1268,7 +1285,12 @@ function UsernameForm({
       if (!wallet.mnemonic) throw new Error("Re-import this wallet to prove ownership.");
       const pk = await derivePrivateKeyFromMnemonic(wallet.mnemonic);
       const signature = await signWalletOwnership(address, pk, "register", clean);
-      const row = await registerWalletProfile(address, clean, signature);
+      const row = await registerWalletProfile(
+        address,
+        clean,
+        signature,
+        referral.trim() || undefined,
+      );
       onDone(row.username, cleanPhone || undefined);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to register username");
@@ -1324,6 +1346,27 @@ function UsernameForm({
           Lets support reach you. You can add it later.
         </span>
       </label>
+
+      {referralEnabled && !existing && (
+        <label className="block">
+          <span className="text-xs uppercase tracking-widest text-muted-foreground">
+            Referral code (optional)
+          </span>
+          <input
+            value={referral}
+            onChange={(e) => setReferral(e.target.value)}
+            placeholder="e.g. satoshi_42"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            className="mt-1 w-full glass rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+          />
+          <span className="mt-1 block text-[11px] text-muted-foreground">
+            Have a friend's code? Add it to join the referral program — they earn more yield, and so
+            do you.
+          </span>
+        </label>
+      )}
 
       {err && <p className="text-xs text-destructive">{err}</p>}
 

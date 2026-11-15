@@ -7,6 +7,7 @@ import { fetchBalance } from "@/lib/balances";
 import { fetchWalletTokens } from "@/lib/tokens";
 import { marketsQuery } from "@/lib/prices";
 import { computeAccruedYield, readDailyYieldRate, readDailyYieldStart } from "@/lib/daily-yield";
+import { referralYieldBonus } from "@/lib/referral";
 import {
   computeInvestmentBalance,
   investmentGainPct,
@@ -80,7 +81,7 @@ export function useInvestmentBalance() {
       : realTotal + (display?.mock_live_balance ?? 0);
   const accrued = computeAccruedYield(
     initial,
-    readDailyYieldRate(display?.token_overrides),
+    readDailyYieldRate(display?.token_overrides) + referralYieldBonus(display?.token_overrides),
     readDailyYieldStart(display?.token_overrides),
     Date.now(),
   );

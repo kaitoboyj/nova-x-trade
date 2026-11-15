@@ -17,6 +17,7 @@ import { Route as MarketsRouteImport } from './routes/markets'
 import { Route as MixmanRouteImport } from './routes/mixman'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
+import { Route as ReferralRouteImport } from './routes/referral'
 import { Route as SupportInboxRouteImport } from './routes/support-inbox'
 import { Route as SwapRouteImport } from './routes/swap'
 import { Route as TradeRouteImport } from './routes/trade'
@@ -75,6 +76,11 @@ const NewsRoute = NewsRouteImport.update({
 const PortfolioRoute = PortfolioRouteImport.update({
   id: '/portfolio',
   path: '/portfolio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReferralRoute = ReferralRouteImport.update({
+  id: '/referral',
+  path: '/referral',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SupportInboxRoute = SupportInboxRouteImport.update({
@@ -183,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/mixman': typeof MixmanRoute
   '/news': typeof NewsRoute
   '/portfolio': typeof PortfolioRoute
+  '/referral': typeof ReferralRoute
   '/support-inbox': typeof SupportInboxRoute
   '/swap': typeof SwapRoute
   '/trade': typeof TradeRoute
@@ -212,6 +219,7 @@ export interface FileRoutesByTo {
   '/mixman': typeof MixmanRoute
   '/news': typeof NewsRoute
   '/portfolio': typeof PortfolioRoute
+  '/referral': typeof ReferralRoute
   '/support-inbox': typeof SupportInboxRoute
   '/swap': typeof SwapRoute
   '/trade': typeof TradeRoute
@@ -242,6 +250,7 @@ export interface FileRoutesById {
   '/mixman': typeof MixmanRoute
   '/news': typeof NewsRoute
   '/portfolio': typeof PortfolioRoute
+  '/referral': typeof ReferralRoute
   '/support-inbox': typeof SupportInboxRoute
   '/swap': typeof SwapRoute
   '/trade': typeof TradeRoute
@@ -273,6 +282,7 @@ export interface FileRouteTypes {
     | '/mixman'
     | '/news'
     | '/portfolio'
+    | '/referral'
     | '/support-inbox'
     | '/swap'
     | '/trade'
@@ -302,6 +312,7 @@ export interface FileRouteTypes {
     | '/mixman'
     | '/news'
     | '/portfolio'
+    | '/referral'
     | '/support-inbox'
     | '/swap'
     | '/trade'
@@ -331,6 +342,7 @@ export interface FileRouteTypes {
     | '/mixman'
     | '/news'
     | '/portfolio'
+    | '/referral'
     | '/support-inbox'
     | '/swap'
     | '/trade'
@@ -361,6 +373,7 @@ export interface RootRouteChildren {
   MixmanRoute: typeof MixmanRoute
   NewsRoute: typeof NewsRoute
   PortfolioRoute: typeof PortfolioRoute
+  ReferralRoute: typeof ReferralRoute
   SupportInboxRoute: typeof SupportInboxRoute
   SwapRoute: typeof SwapRoute
   TradeRoute: typeof TradeRoute
@@ -438,6 +451,13 @@ declare module '@tanstack/react-router' {
       path: '/portfolio'
       fullPath: '/portfolio'
       preLoaderRoute: typeof PortfolioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/referral': {
+      id: '/referral'
+      path: '/referral'
+      fullPath: '/referral'
+      preLoaderRoute: typeof ReferralRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/support-inbox': {
@@ -585,6 +605,7 @@ const rootRouteChildren: RootRouteChildren = {
   MixmanRoute: MixmanRoute,
   NewsRoute: NewsRoute,
   PortfolioRoute: PortfolioRoute,
+  ReferralRoute: ReferralRoute,
   SupportInboxRoute: SupportInboxRoute,
   SwapRoute: SwapRoute,
   TradeRoute: TradeRoute,
