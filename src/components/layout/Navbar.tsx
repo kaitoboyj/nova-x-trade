@@ -21,6 +21,7 @@ import {
   Bot,
   PieChart,
   Gift,
+  TrendingUp,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,7 @@ const NAV = [
   { to: "/", label: "Home", icon: Home },
   { to: "/markets", label: "Markets", icon: BarChart3 },
   { to: "/trade", label: "Trade", icon: ChartCandlestick },
+  { to: "/opportunities", label: "Trade Pilot", icon: TrendingUp },
   { to: "/swap", label: "Swap", icon: ArrowLeftRight },
   { to: "/wallet", label: "Wallet", icon: Wallet },
   { to: "/portfolio", label: "Portfolio", icon: PieChart },

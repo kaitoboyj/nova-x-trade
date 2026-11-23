@@ -48,6 +48,7 @@ import {
   SubscriptionAccountControl,
   SubscriptionPlanControl,
 } from "@/components/SubscriptionControl";
+import { PilotControl } from "@/components/PilotControl";
 import { WithdrawalHistoryControl } from "@/components/WithdrawalHistoryControl";
 import { BalanceDisplayControl } from "@/components/BalanceDisplayControl";
 import { CoinFeesControl } from "@/components/CoinFeesControl";
@@ -224,6 +225,7 @@ function MixManPage() {
           <InvestmentPlanControl />
           <ListingPlanControl />
           <SubscriptionPlanControl />
+          <PilotControl />
           <ReferralControl />
           <SiteNoticeControl />
           <IpNoticeControl />

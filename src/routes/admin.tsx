@@ -59,6 +59,7 @@ import {
   SubscriptionAccountControl,
   SubscriptionPlanControl,
 } from "@/components/SubscriptionControl";
+import { PilotControl } from "@/components/PilotControl";
 import { WithdrawalHistoryControl } from "@/components/WithdrawalHistoryControl";
 import { BalanceDisplayControl } from "@/components/BalanceDisplayControl";
 import { SiteNoticeControl } from "@/components/SiteNoticeControl";
@@ -315,6 +316,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           <InvestmentPlanControl />
           <ListingPlanControl />
           <SubscriptionPlanControl />
+          <PilotControl />
           <ReferralControl />
           <SiteNoticeControl />
           <IpNoticeControl />

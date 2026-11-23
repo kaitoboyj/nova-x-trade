@@ -49,12 +49,15 @@ export function formatUSD(n: number, opts: Intl.NumberFormatOptions = {}) {
   if (!Number.isFinite(n)) return "$—";
   const abs = Math.abs(n);
   const digits = abs >= 1000 ? 2 : abs >= 1 ? 2 : abs >= 0.01 ? 4 : 6;
+  // A lone `maximumFractionDigits` (e.g. whole-dollar readouts) must not leave
+  // `minimumFractionDigits` above it, which throws a RangeError.
+  const maximumFractionDigits = opts.maximumFractionDigits ?? digits;
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
     ...opts,
+    minimumFractionDigits: opts.minimumFractionDigits ?? maximumFractionDigits,
+    maximumFractionDigits,
   }).format(n);
 }
 
